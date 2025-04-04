@@ -21,15 +21,15 @@ def get_random_path(
 
 
 def get_walls(path, w, h, thick):
-    xmin, ymin = path.min(0) - w
-    xmax, ymax = path.max(0) + w
     res = 0.05
+    xmin, ymin = path.min(0) - w - res
+    xmax, ymax = path.max(0) + w + res
     n_cols = int((xmax - xmin) / res)
     n_rows = int((ymax - ymin) / res)
     im = np.zeros((n_rows, n_cols), dtype=np.uint8)
     line = [((path - (xmin, ymin)) / res).astype(np.int32)]
     im = cv2.polylines(im, line, isClosed=False, color=1, thickness=int(w * 2 / res))
-    contour = cv2.findContours(np.pad(im, 1), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[0][0] - 1
+    contour = cv2.findContours(im, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[0][0]
     is_ccw = cv2.contourArea(contour, oriented=True) > 0
     if not is_ccw:
         contour = contour[::-1]
