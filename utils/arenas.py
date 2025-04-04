@@ -20,6 +20,37 @@ def get_random_path(
     return np.column_stack([traj.real, traj.imag])
 
 
+def get_walls(path, w, h, thick):
+    xmin, ymin = path.min(0) - w
+    xmax, ymax = path.max(0) + w
+    res = 0.05
+    n_cols = int((xmax - xmin) / res)
+    n_rows = int((ymax - ymin) / res)
+    im = np.zeros((n_rows, n_cols), dtype=np.uint8)
+    line = [((path - (xmin, ymin)) / res).astype(np.int32)]
+    im = cv2.polylines(im, line, isClosed=False, color=1, thickness=int(w * 2 / res))
+    contour = cv2.findContours(np.pad(im, 1), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[0][0] - 1
+    is_ccw = cv2.contourArea(contour, oriented=True) > 0
+    if not is_ccw:
+        contour = contour[::-1]
+    step = 20
+    points = (contour[::step, 0] * res + (xmin, ymin)) @ (1, 1j)
+    diff = np.roll(points, -1) - points
+    rx = np.abs(diff) / 2
+    theta_z = np.angle(diff)
+    centers = (np.roll(points, -1) + points) / 2 + diff / np.abs(diff) * -1j * thick
+    
+    for rx_, theta_z_, center_ in zip(rx, theta_z, centers):
+        yield dict(
+            element_name="geom",
+            type="box",
+            size=(rx_, thick, h),
+            pos=(center_.real, center_.imag, h),
+            rgba=(1, 0, 0, 1),
+            euler=(0, 0, theta_z_),
+        )
+
+
 class Corridor(FlatTerrain):
     def __init__(
         self,
@@ -28,7 +59,7 @@ class Corridor(FlatTerrain):
         r_range=(19, 20),
         theta_range=(-np.pi / 6, np.pi / 6),
         d_max=0.25,
-        wall_thickness=0.1,
+        thick=0.1,
         **kwargs,
     ):
         """
@@ -39,7 +70,7 @@ class Corridor(FlatTerrain):
             Height of the walls.
         w : float
             Half width of the corridor.
-        wall_thickness : float
+        thick : float
             Thickness of the walls.
         d_max : float
             Maximum deviation of the path from the straight line.
@@ -51,31 +82,6 @@ class Corridor(FlatTerrain):
             d_max=d_max,
             seed=None,
         )
-        xmin, ymin = path.min(0) - w
-        xmax, ymax = path.max(0) + w
-        res = 0.05
-        n_cols = int((xmax - xmin) / res)
-        n_rows = int((ymax - ymin) / res)
-        im = np.zeros((n_rows, n_cols), dtype=np.uint8)
-        line = [((path - (xmin, ymin)) / res).astype(np.int32)]
-        im = cv2.polylines(im, line, isClosed=False, color=1, thickness=int(w * 2 / res))
-        contour = cv2.findContours(np.pad(im, 1), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[0][0] - 1
-        is_ccw = cv2.contourArea(contour, oriented=True) > 0
-        if not is_ccw:
-            contour = contour[::-1]
-        step = 20
-        points = (contour[::step, 0] * res + (xmin, ymin)) @ (1, 1j)
-        diff = np.roll(points, -1) - points
-        rx = np.abs(diff) / 2
-        theta_z = np.angle(diff)
-        centers = (np.roll(points, -1) + points) / 2 + diff / np.abs(diff) * -1j * wall_thickness
         
-        for rx_, theta_z_, center_ in zip(rx, theta_z, centers):
-            self.root_element.worldbody.add(
-                "geom",
-                type="box",
-                size=(rx_, wall_thickness, h),
-                pos=(center_.real, center_.imag, h),
-                rgba=(1, 0, 0, 1),
-                euler=(0, 0, theta_z_),
-            )
+        for wall_params in get_walls(path, w, h, thick):
+            self.root_element.worldbody.add(**wall_params)
