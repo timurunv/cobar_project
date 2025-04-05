@@ -51,6 +51,45 @@ def get_walls(path, w, h, thick):
         )
 
 
+def get_pillars(path, w, h, thick, r, sep):
+    import cv2
+
+    res = 0.05
+    xmin, ymin = path.min(0) - w - thick + r - res
+    xmax, ymax = path.max(0) + w + thick - r + res
+    n_cols = int((xmax - xmin) / res)
+    n_rows = int((ymax - ymin) / res)
+    im = np.zeros((n_rows, n_cols), dtype=np.uint8)
+    line = [((path - (xmin, ymin)) / res).astype(np.int32)]
+    im_inner = cv2.polylines(
+        im.copy(), line, isClosed=False, color=1, thickness=int((w + r) * 2 / res),
+    )
+
+    im_outer = cv2.polylines(
+        im.copy(), line, isClosed=False, color=1, thickness=int((w + thick - r) * 2 / res),
+    )
+
+    im = im_outer & ~im_inner
+
+    while True:
+        argwhere = np.argwhere(im)
+        
+        try:
+            p = argwhere[np.random.choice(len(argwhere))]
+        except ValueError:
+            break
+        
+        cv2.circle(im, (p[1], p[0]), int((r + sep) / res), color=0, thickness=-1)
+
+        yield dict(
+            element_name="geom",
+            type="cylinder",
+            size=(r, h),
+            pos=(p[1] * res + xmin, p[0] * res + ymin, h),
+            rgba=(1, 0, 0, 1),
+        )
+
+
 class Corridor(FlatTerrain):
     def __init__(
         self,
@@ -85,3 +124,27 @@ class Corridor(FlatTerrain):
         
         for wall_params in get_walls(path, w, h, thick):
             self.root_element.worldbody.add(**wall_params)
+
+
+class CorridorWithPillars(FlatTerrain):
+    def __init__(
+        self,
+        h=3,
+        w=3,
+        r_range=(19, 20),
+        theta_range=(-np.pi / 6, np.pi / 6),
+        d_max=0.25,
+        thick=3,
+        r=0.2,
+        sep=1,
+        **kwargs,
+    ):
+        super().__init__(**kwargs, ground_alpha=0)
+        path = get_random_path(
+            r_range=r_range,
+            theta_range=theta_range,
+            d_max=d_max,
+            seed=None,
+        )
+        for pillar_params in get_pillars(path, w, h, thick, r, sep):
+            self.root_element.worldbody.add(**pillar_params)
