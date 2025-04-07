@@ -6,6 +6,8 @@ from flygym.arena import FlatTerrain
 import utils.cobar_fly as cobar_fly
 import cv2
 
+import cobar_miniproject
+
 # OPTIONS
 #
 # render the camera
@@ -34,7 +36,8 @@ if __name__ == "__main__":
         fly=fly,
         cameras=[cam],
         timestep=timestep,
-        arena=FlatTerrain(),
+        # arena=FlatTerrain(),
+        arena=cobar_miniproject.levels[0](),
     )
 
     controller = KeyBoardController(timestep=timestep, seed=0)
