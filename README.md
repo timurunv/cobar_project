@@ -2,3 +2,6 @@
 
 Welcome to the Miniproject for BIOENG-456!
 
+Extra things to install
+
+* `pynput`
