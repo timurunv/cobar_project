@@ -11,6 +11,8 @@ def run_simulation(
     seed,
     max_steps,
 ):
+    from tqdm import trange
+
     submission_dir = Path(submission_dir)
     sys.path.append(str(submission_dir.parent))
     module = importlib.import_module(submission_dir.name)
@@ -47,7 +49,8 @@ def run_simulation(
 
     obs, info = sim.reset(seed=0)
 
-    for _ in range(max_steps):
+    for _ in trange(max_steps):
+        obs["raw_vision"] = info["raw_vision"]
         sim.step(controller(obs))
         sim.render()
 
