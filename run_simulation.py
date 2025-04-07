@@ -51,7 +51,7 @@ def run_simulation(
     obs, info = sim.reset(seed=0)
 
     output_dir = Path("outputs")
-    video_path = output_dir / f"{submission_dir.name}_{level}_{seed}.mp4"
+    video_path = output_dir / f"{submission_dir.name}" / f"{level}_{seed}.mp4"
     video_path.parent.mkdir(exist_ok=True, parents=True)
 
     for _ in trange(max_steps):
@@ -69,13 +69,12 @@ if __name__ == "__main__":
     fixed_seeds = [0, 42, 1337]  # these seeds are fixed
     secret_seeds = []  # there will be 7 more secret seeds
     seeds = fixed_seeds + secret_seeds
-    root_dir = Path(__file__).parent / "submissions"
-    submission_directories = [i for i in root_dir.glob("group*") if i.is_dir()]
+    submission_dir = Path(__file__).parent / "submission"
     max_steps = 10000
 
     arg_list = list(
         product(
-            submission_directories,
+            [submission_dir],
             range(2),
             seeds,
             [max_steps],

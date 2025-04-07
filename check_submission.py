@@ -36,22 +36,9 @@ if __name__ == "__main__":
 
     if args.submission_dir is None:
         print(
-            "Submission directory is not provided. Searching in the submissions/ folder."
+            "Submission directory is not provided and is assumed to be at the default location."
         )
-        results = sorted((i for i in Path("submissions").glob("group*") if i.is_dir()))
-        if len(results) == 0:
-            raise ValueError(
-                "No directories named groupX found in the submissions/ folder."
-            )
-        if len(results) > 1:
-            import warnings
-
-            warnings.warn(
-                "More than one submission directory found. Using the last one."
-            )
-
-        submission_dir = results[-1]
-        print(f"Using submission directory: {submission_dir}")
+        submission_dir = Path("submission").absolute()
     else:
         submission_dir = Path(args.submission_dir).absolute()
 
@@ -61,14 +48,6 @@ if __name__ == "__main__":
     assert (
         submission_dir.exists()
     ), f"The submission directory {submission_dir} does not exist."
-
-    # check format of directory name
-    import re
-
-    assert re.match("group\\d", submission_dir.name), (
-        "The submission directory should be named 'groupX' where X is a number."
-        f"Found: {submission_dir.name}"
-    )
 
     # check if the controller can be instantiated
     import sys
