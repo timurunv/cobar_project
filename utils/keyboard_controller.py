@@ -3,8 +3,10 @@ from pynput import keyboard
 from flygym.examples.locomotion import PreprogrammedSteps, CPGNetwork
 import threading
 
+from cobarcontroller import CobarController
+
 # Initialize CPG network
-intrinsic_freqs = np.ones(6) * 12
+intrinsic_freqs = np.ones(6) * 12 * 1.5
 intrinsic_amps = np.ones(6) * 1
 phase_biases = np.pi * np.array(
     [
@@ -19,7 +21,6 @@ phase_biases = np.pi * np.array(
 coupling_weights = (phase_biases > 0) * 10
 convergence_coefs = np.ones(6) * 20
 
-from cobarcontroller import CobarController
 
 class KeyBoardController(CobarController):
     def __init__(self, timestep, seed, leg_step_time=0.025):
@@ -103,8 +104,8 @@ class KeyBoardController(CobarController):
                 self.gain_left = 1.0*self.forward
                 self.gain_right = 1.0*self.forward
             else:
-                left_gain_increment = 0.3 * self.forward if self.turning == 1 else 0.0
-                right_gain_increment = 0.3 * self.forward if self.turning == -1 else 0.0
+                left_gain_increment = 0.6 * self.forward if self.turning == 1 else 0.0
+                right_gain_increment = 0.6 * self.forward if self.turning == -1 else 0.0
                 self.gain_left = 1.2*self.forward - left_gain_increment
                 self.gain_right = 1.2*self.forward - right_gain_increment
         else:
