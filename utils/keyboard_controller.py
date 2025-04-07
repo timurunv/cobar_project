@@ -167,3 +167,10 @@ class KeyBoardController(CobarController):
 
         self.leg_phases = np.zeros(6)
         self.step_direction = np.zeros(6)
+    
+    def done_level(self, obs):
+        # check if quit is set to true
+        if self.quit:
+            return True
+        # check if the simulation is done
+        return False
