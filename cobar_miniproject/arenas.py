@@ -70,6 +70,35 @@ def _circ(
     cv2.circle(img, center, radius, color, thickness)
 
 
+class OdorTargetOnlyArena(ObstacleOdorArena):
+    def __init__(
+        self,
+        target_distance_range=(29, 31),
+        target_angle_range=(-np.pi, np.pi),
+        target_marker_size=0.3,
+        target_marker_color=(1, 0.5, 14 / 255, 1),
+        seed=None,
+        **kwargs,
+    ):
+        rng = np.random.default_rng(seed)
+
+        target_position = _get_random_target_position(
+            distance_range=target_distance_range,
+            angle_range=target_angle_range,
+            rng=rng,
+        )
+
+        super().__init__(
+            terrain=FlatTerrain(ground_alpha=0),
+            obstacle_positions=np.array([]),
+            peak_odor_intensity=np.array([[1, 0]]),
+            odor_source=np.array([[*target_position, 1]]),
+            marker_colors=np.array([target_marker_color]),
+            marker_size=target_marker_size,
+            **kwargs,
+        )
+
+
 class ScatteredPillarsArena(ObstacleOdorArena):
     """
     An arena with scattered pillars and a target marker.
@@ -156,13 +185,13 @@ class ScatteredPillarsArena(ObstacleOdorArena):
         )
 
         super().__init__(
-            odor_source=np.array([[*target_position, 1]]),
-            marker_colors=np.array([target_marker_color]),
-            peak_odor_intensity=np.array([[1, 0]]),
+            terrain=FlatTerrain(ground_alpha=0),
             obstacle_positions=pillar_positions,
             obstacle_radius=pillar_radius,
             obstacle_height=pillar_height,
-            terrain=FlatTerrain(ground_alpha=0),
+            odor_source=np.array([[*target_position, 1]]),
+            peak_odor_intensity=np.array([[1, 0]]),
+            marker_colors=np.array([target_marker_color]),
             marker_size=target_marker_size,
             **kwargs,
         )

@@ -22,7 +22,11 @@ if __name__ == "__main__":
     from pathlib import Path
 
     parser = argparse.ArgumentParser(description="Check submission directory.")
-    parser.add_argument("submission_dir", help="Path to the submission directory")
+    parser.add_argument(
+        "submission_dir",
+        help="Path to the submission directory",
+        default=None,
+    )
     parser.add_argument(
         "--output",
         help="Path to the output zip file",
@@ -30,7 +34,27 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    submission_dir = Path(args.submission_dir).absolute()
+    if args.submission_dir is None:
+        print(
+            "Submission directory is not provided. Searching in the submissions/ folder."
+        )
+        results = sorted((i for i in Path("submissions").glob("group*") if i.is_dir()))
+        if len(results) == 0:
+            raise ValueError(
+                "No directories named groupX found in the submissions/ folder."
+            )
+        if len(results) > 1:
+            import warnings
+
+            warnings.warn(
+                "More than one submission directory found. Using the last one."
+            )
+
+        submission_dir = results[-1]
+        print(f"Using submission directory: {submission_dir}")
+    else:
+        submission_dir = Path(args.submission_dir).absolute()
+
     output_path = args.output
 
     # check if the submission directory exists

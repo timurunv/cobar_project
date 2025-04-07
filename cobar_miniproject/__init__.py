@@ -1,9 +1,9 @@
 from .base_controller import BaseController
-from .arenas import ScatteredPillarsArena
+from .arenas import OdorTargetOnlyArena, ScatteredPillarsArena
 
 __all__ = ["BaseController"]
 levels = {
-    0: ScatteredPillarsArena,
+    0: OdorTargetOnlyArena,
     1: ScatteredPillarsArena,
     2: ScatteredPillarsArena,
     3: ScatteredPillarsArena,
