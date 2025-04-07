@@ -23,8 +23,15 @@ convergence_coefs = np.ones(6) * 20
 
 
 class KeyBoardController(CobarController):
-    def __init__(self, timestep, seed, leg_step_time=0.025):
+    def __init__(self, timestep: float, seed: int, leg_step_time=0.025):
+        """Controller that listens to your keypresses and uses these to modulate CPGs that control
+        fly walking and turning.
 
+        Args:
+            timestep (float): timestep of the simulation
+            seed (int): random seed
+            leg_step_time (float, optional): How long is the duration of each step. Defaults to 0.025.
+        """
         self.timestep = timestep
         self.preprogrammed_steps = PreprogrammedSteps()
         self.intrinsic_freqs = intrinsic_freqs
