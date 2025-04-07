@@ -71,6 +71,58 @@ def _circ(
 
 
 class ScatteredPillarsArena(ObstacleOdorArena):
+    """
+    An arena with scattered pillars and a target marker.
+
+    This class generates an arena with randomly placed pillars and a target marker.
+    The target marker is placed at a random position within a specified distance
+    and angle range. Pillars are placed randomly while maintaining a minimum
+    separation from the target, the fly, and other pillars.
+
+    Parameters
+    ----------
+    target_distance_range : tuple[float, float], optional
+        Range of distances from the origin for the target marker. Default is (29, 31).
+    target_angle_range : tuple[float, float], optional
+        Range of angles (in radians) for the target marker. Default is (-π, π).
+    target_clearance_radius : float, optional
+        Minimum clearance radius around the target marker. Default is 4.
+    target_marker_size : float, optional
+        Size of the target marker. Default is 0.3.
+    target_marker_color : tuple[float, float, float, float], optional
+        RGBA color of the target marker. Default is (1, 0.5, 14/255, 1).
+    pillar_height : float, optional
+        Height of the pillars. Default is 3.
+    pillar_radius : float, optional
+        Radius of the pillars. Default is 0.3.
+    pillars_minimum_separation : float, optional
+        Minimum separation between pillars. Default is 6.
+    fly_clearance_radius : float, optional
+        Minimum clearance radius around the fly. Default is 4.
+    seed : int or None, optional
+        Seed for the random number generator. Default is None.
+    **kwargs : dict
+        Additional keyword arguments passed to the parent class.
+
+    Attributes
+    ----------
+    odor_source : np.ndarray
+        Position of the odor source.
+    marker_colors : np.ndarray
+        Colors of the markers.
+    peak_odor_intensity : np.ndarray
+        Peak intensity of the odor.
+    obstacle_positions : np.ndarray
+        Positions of the pillars.
+    obstacle_radius : float
+        Radius of the pillars.
+    obstacle_height : float
+        Height of the pillars.
+    terrain : FlatTerrain
+        Terrain of the arena.
+    marker_size : float
+        Size of the target marker.
+    """
     def __init__(
         self,
         target_distance_range=(29, 31),
@@ -165,18 +217,9 @@ class ScatteredPillarsArena(ObstacleOdorArena):
         _circ(im1, (0, 0), fly_clearance_radius, 0, xmin, ymin, res)
         _circ(im1, target_position, target_clearance_radius, 0, xmin, ymin, res)
 
-        pillar_positions = [target_position / 2]
-        _circ(im1, pillar_positions[0], pillar_clearance_radius, 0, xmin, ymin, res)
-        _circ(
-            im2,
-            pillar_positions[0],
-            pillar_clearance_radius,
-            1,
-            xmin,
-            ymin,
-            res,
-            outer=True,
-        )
+        pillars_xy = [target_position / 2]
+        _circ(im1, pillars_xy[0], pillar_clearance_radius, 0, xmin, ymin, res)
+        _circ(im2, pillars_xy[0], pillar_clearance_radius, 1, xmin, ymin, res, outer=True)
 
         while True:
             argwhere = np.argwhere(im1 & im2)
@@ -184,8 +227,8 @@ class ScatteredPillarsArena(ObstacleOdorArena):
                 p = argwhere[rng.choice(len(argwhere)), ::-1] * res + (xmin, ymin)
             except ValueError:
                 break
-            pillar_positions.append(p)
+            pillars_xy.append(p)
             _circ(im1, p, pillar_clearance_radius, 0, xmin, ymin, res)
             _circ(im2, p, pillar_clearance_radius, 1, xmin, ymin, res, outer=True)
 
-        return np.array(pillar_positions)
+        return np.array(pillars_xy)
