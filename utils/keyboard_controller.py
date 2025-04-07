@@ -152,10 +152,6 @@ class KeyBoardController(CobarController):
         self.set_CPGbias()
         return self.get_cpg_joint_angles()
 
-    def flush_keys(self):
-        with self.lock:
-            self.pressed_CPG_keys.clear()
-
     def reset(self, seed=None, init_phases=None, init_magnitudes=None, **kwargs):
         self.cpg_network.random_state = np.random.RandomState(seed)
         self.cpg_network.intrinsic_amps = self.intrinsic_amps
