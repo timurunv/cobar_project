@@ -1,3 +1,4 @@
+from flygym.examples.vision.arena import ObstacleOdorArena
 import cv2
 import numpy as np
 from flygym.arena import FlatTerrain
@@ -70,7 +71,8 @@ def get_pillars(path, w, h, thick, r, sep):
     )
 
     im = im_outer & ~im_inner
-
+    
+    pos = []
     while True:
         argwhere = np.argwhere(im)
         
@@ -80,14 +82,9 @@ def get_pillars(path, w, h, thick, r, sep):
             break
         
         cv2.circle(im, (p[1], p[0]), int((r + sep) / res), color=0, thickness=-1)
-
-        yield dict(
-            element_name="geom",
-            type="cylinder",
-            size=(r, h),
-            pos=(p[1] * res + xmin, p[0] * res + ymin, h),
-            rgba=(1, 0, 0, 1),
-        )
+        pos.append((p[1] * res + xmin, p[0] * res + ymin))
+    
+    return np.array(pos)
 
 
 class Corridor(FlatTerrain):
@@ -125,8 +122,7 @@ class Corridor(FlatTerrain):
         for wall_params in get_walls(path, w, h, thick):
             self.root_element.worldbody.add(**wall_params)
 
-
-class CorridorWithPillars(FlatTerrain):
+class CorridorWithPillars(ObstacleOdorArena):
     def __init__(
         self,
         h=3,
@@ -139,12 +135,19 @@ class CorridorWithPillars(FlatTerrain):
         sep=1,
         **kwargs,
     ):
-        super().__init__(**kwargs, ground_alpha=0)
         path = get_random_path(
             r_range=r_range,
             theta_range=theta_range,
             d_max=d_max,
             seed=None,
         )
-        for pillar_params in get_pillars(path, w, h, thick, r, sep):
-            self.root_element.worldbody.add(**pillar_params)
+
+        pos = get_pillars(path, w, h, thick, r, sep)
+        
+        super().__init__(
+            obstacle_positions=pos,
+            obstacle_radius=r,
+            obstacle_height=h,
+            terrain=FlatTerrain(ground_alpha=0),
+            **kwargs,
+        )
