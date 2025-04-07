@@ -23,7 +23,7 @@ if __name__ == "__main__":
     # you can pass in parameters to enable different senses here
     # head stabilisation
     # camera could be optional - just play in fly mode
-    fly = cobar_fly.CobarFly(enable_vision=True)
+    fly = cobar_fly.CobarFly(debug=True, enable_vision=True)
 
     cam = YawOnlyCamera(
         attachment_point=fly.model.worldbody,
@@ -56,8 +56,13 @@ if __name__ == "__main__":
             obs, reward, terminated, truncated, info = sim.step(
                 controller.get_actions(obs)
             )
+            if controller.done_level(obs):
+                # finish the path integration level
+                break
+            
             obs_hist.append(obs)
             info_hist.append(info)
+
 
             rendered_img = sim.render()[0]
             if rendered_img is not None:

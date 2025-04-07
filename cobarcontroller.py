@@ -5,7 +5,6 @@ import numpy as np
 
 class CobarController(ABC):
 
-    @abstractmethod
     def __init__(self, **kwargs):
         """
         Initialize the CobarController with any necessary parameters.
@@ -42,7 +41,16 @@ class CobarController(ABC):
         return action
 
     @abstractmethod
+    def done_level(self, obs):
+        """
+        For level 5 (path integration) - if the fly has returned back home after collecting the odour,
+        return `True` here to stop the simulation.
+        """
+        ...
+
+    @abstractmethod
     def reset(self, **kwargs):
         """
         Reset the controller to its initial state.
         """
+        ...
