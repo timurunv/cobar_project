@@ -49,83 +49,68 @@ class KeyBoardController(CobarController):
         self.step_direction = np.zeros(6)
         self.phase_increment = self.timestep / leg_step_time * 2 * np.pi
 
-        self.tripod_map = {"LF": 0, "LM": 1, "LH": 0, "RF": 1, "RM": 0, "RH": 1}
-        self.tripod_phases = np.zeros(2)
-
-        self.goes_backward = False
+        self.turning = 0 # 1 is left 0 is stationary -1 is right
+        self.forward = 0 #1 is forward 0 is stationary -1 is backward
         self.gain_right = 0.0
         self.gain_left = 0.0
 
-        # Keyboard keys
-        self.CPG_keys = ["w", "s", "a", "d"]
-
         # Shared lists to store key presses
-        self.pressed_CPG_keys = []
         self.lock = threading.Lock()
 
         print("Starting key listener")
         # Start the keyboard listener thread
-        self.listener = keyboard.Listener(on_press=self.on_press)
+        self.listener = keyboard.Listener(on_press=self.on_press, on_release=self.on_release)
         self.listener.start()
 
         self.quit = False
 
     def on_press(self, key):
-        key_str = (
-            key.char if hasattr(key, "char") else str(key)
-        )  # Gets the character of the key
-
-        if key_str in self.CPG_keys:
-            self.pressed_CPG_keys.append(key_str)
-        if key_str == "Key.esc":  # Quit when esc is pressed
+        # check if key is w, a, s, d
+        if key == keyboard.KeyCode.from_char("w"):
+            with self.lock:
+                self.forward = 1
+        if key == keyboard.KeyCode.from_char("a"):
+            with self.lock:
+                self.turning = 1
+        if key == keyboard.KeyCode.from_char("s"):
+            with self.lock:
+                self.forward = -1
+        if key == keyboard.KeyCode.from_char("d"):
+            with self.lock:
+                self.turning = -1
+        if key == keyboard.Key.esc:
             self.listener.stop()
             self.quit = True
-
-    def retrieve_keys(self):
-        """Retrieve and clear all recorded key presses."""
-        with self.lock:
-            pCPG_keys = self.pressed_CPG_keys[:]
-            self.pressed_CPG_keys.clear()
-
-        return pCPG_keys
-
-    def sort_keyboard_input(self, pCPG_keys):
-        """Sorts the keys pressed and returns the last one."""
-        keys = []
-        if pCPG_keys:
-            keys.append(max(set(pCPG_keys), key=pCPG_keys.count))
-
-        return keys
+            
+    def on_release(self, key):
+        # check if key is w, a, s, d
+        if key == keyboard.KeyCode.from_char("w"):
+            with self.lock:
+                self.forward = 0
+        if key == keyboard.KeyCode.from_char("a"):
+            with self.lock:
+                self.turning = 0
+        if key == keyboard.KeyCode.from_char("s"):
+            with self.lock:
+                self.forward = 0
+        if key == keyboard.KeyCode.from_char("d"):
+            with self.lock:
+                self.turning = 0
 
     def set_CPGbias(self):
-
-        # Retrieve all keys pressed since the last call
-        keys = self.sort_keyboard_input(self.retrieve_keys())
-
-        for key in keys:
-            if key == "a":
-                if self.goes_backward:
-                    self.gain_right = -0.6
-                    self.gain_left = -1.2
-                else:
-                    self.gain_left = 0.4
-                    self.gain_right = 1.2
-            elif key == "d":
-                if self.goes_backward:
-                    self.gain_left = -0.6
-                    self.gain_right = -1.2
-                else:
-                    self.gain_right = 0.4
-                    self.gain_left = 1.2
-            elif key == "w":
-                self.goes_backward = True
-                self.gain_right = 1.0
-                self.gain_left = 1.0
-            elif key == "s":
-                self.goes_backward = True
-                self.gain_right = -1.0
-                self.gain_left = -1.0
-
+        if np.abs(self.forward) == 1.0:
+            if self.turning == 0:
+                self.gain_left = 1.0*self.forward
+                self.gain_right = 1.0*self.forward
+            else:
+                left_gain_increment = 0.3 * self.forward if self.turning == 1 else 0.0
+                right_gain_increment = 0.3 * self.forward if self.turning == -1 else 0.0
+                self.gain_left = 1.2*self.forward - left_gain_increment
+                self.gain_right = 1.2*self.forward - right_gain_increment
+        else:
+            self.gain_left = -1.0*self.turning
+            self.gain_right = 1.0*self.turning
+        
     def get_cpg_joint_angles(self):
         action = np.array([self.gain_left, self.gain_right])
 
