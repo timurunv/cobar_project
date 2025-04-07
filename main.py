@@ -11,16 +11,7 @@ if __name__ == "__main__":
     run_time = 5.0
     timestep = 1e-4
 
-    # Initialize the simulation
-    # fly = Fly(
-    #     enable_adhesion=True,
-    #     draw_adhesion=True,
-    #     init_pose="stretch",
-    #     control="position",
-    #     xml_variant="seqik_simple",
-    # )
-
-    fly = cobar_fly.SimpleHeadStabilisedFly(enable_vision=True)
+    fly = cobar_fly.CobarFly(enable_vision=True)
 
     cam = YawOnlyCamera(
         attachment_point=fly.model.worldbody,
@@ -40,7 +31,6 @@ if __name__ == "__main__":
 
     # run cpg simulation
     obs, info = sim.reset()
-    print(f"Spawning fly at {obs['fly'][0]} mm")
     target_num_steps = int(run_time / sim.timestep)
     obs_hist = []
     info_hist = []
@@ -69,4 +59,4 @@ if __name__ == "__main__":
     print(f"Simulation terminated: {obs_hist[-1]['fly'][0] - obs_hist[0]['fly'][0]}")
 
     # Save video
-    cam.save_video(f"./outputs/hybrid_controller.mp4", 0)
+    cam.save_video("./outputs/hybrid_controller.mp4", 0)
