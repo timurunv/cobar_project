@@ -22,7 +22,7 @@ from flygym.arena import FlatTerrain
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the fly simulation.")
     parser.add_argument(
-        "level", type=int, default=-1, help="Level to load (default: -1)"
+        "--level", type=int, default=-1, help="Level to load (default: -1)"
     )
     parser.add_argument(
         "--seed", type=int, default=0, help="Seed for the simulation (default: 0)"
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     elif level <= 1:
         level_arena = levels[level](fly=fly)
     else:
-        arena = FlatTerrain()
+        level_arena = FlatTerrain()
 
     cam = YawOnlyCamera(
         attachment_point=fly.model.worldbody,
@@ -56,7 +56,7 @@ if __name__ == "__main__":
         fly=fly,
         cameras=[cam],
         timestep=timestep,
-        arena=arena,
+        arena=level_arena,
     )
 
     controller = KeyBoardController(timestep=timestep, seed=seed)
