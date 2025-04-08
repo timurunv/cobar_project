@@ -670,13 +670,11 @@ class FoodToNestArena(HierarchicalArena):
     def step(self, dt, physics):
         fly_pos = physics.bind(self.fly._body_sensors[0]).sensordata[:2].copy()
         if self.state == "exploration":
+            LoomingBallArena.step_ball(self, dt, physics)
             if np.linalg.norm(self.target_position - fly_pos) < self.to_target_distance:
                 self.state = "returning"
                 self.setup_return_mode(physics)
-                LoomingBallArena.step_ball(self, dt, physics)
-
+            
         if self.state == "returning":
             if np.linalg.norm(self.nest_position - fly_pos) < self.to_target_distance:
                 self.quit = True
-        
-            
