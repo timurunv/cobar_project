@@ -3,7 +3,17 @@ import numpy as np
 
 
 class CobarFly(Fly):
-    def __init__(self, debug=False, **kwargs):
+    def __init__(
+        self, debug=False, enable_vision=True, render_raw_vision=False, **kwargs
+    ):
+        """Specific Fly instance for use in the COBAR project.
+        The physics have been to improve simulation speed.
+
+        Args:
+            debug (bool, optional): If this is true, get the raw observations from the fly. Don't use this when running your controller! Defaults to False.
+            enable_vision (bool, optional): Whether the fly-perspective vision is rendered. This can be disabled if not needed to increase simulation speed. Defaults to True.
+            render_raw_vision (bool, optional): Whether the raw fly-perspective vision is rendered. This can be disabled if not needed to increase simulation speed. Defaults to False.
+        """
         super().__init__(
             contact_sensor_placements=[
                 f"{side}{pos}{segment}"
@@ -23,6 +33,8 @@ class CobarFly(Fly):
             neck_kp=1000,
             enable_adhesion=True,
             enable_olfaction=True,
+            enable_vision=enable_vision,
+            render_raw_vision=render_raw_vision,
             **kwargs,
         )
         self.debug = debug

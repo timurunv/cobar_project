@@ -22,7 +22,7 @@ from flygym.arena import FlatTerrain
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the fly simulation.")
     parser.add_argument(
-        "--level", type=int, default=-1, help="Level to load (default: -1)"
+        "--level", type=int, default=4, help="Level to load (default: -1)"
     )
     parser.add_argument(
         "--seed", type=int, default=0, help="Seed for the simulation (default: 0)"
@@ -34,9 +34,7 @@ if __name__ == "__main__":
     timestep = 1e-4
 
     # you can pass in parameters to enable different senses here
-    # head stabilisation
-    # camera could be optional - just play in fly mode
-    fly = CobarFly(debug=True, enable_vision=True)
+    fly = CobarFly(debug=False, enable_vision=True, render_raw_vision=False)
 
     if level <= -1:
         level_arena = FlatTerrain()
@@ -69,7 +67,7 @@ if __name__ == "__main__":
     info_hist = []
 
     # create window
-    cv2.namedWindow("Simulation", cv2.WINDOW_NORMAL)
+    # cv2.namedWindow("Simulation", cv2.WINDOW_NORMAL)
 
     with tqdm.tqdm(desc="running simulation") as progress_bar:
         while True:
@@ -85,24 +83,44 @@ if __name__ == "__main__":
             info_hist.append(info)
 
             rendered_img = sim.render()[0]
-            if rendered_img is not None:
-                rendered_img = render_image_with_vision(
-                    rendered_img, get_fly_vision(fly)
-                )
-                rendered_img = cv2.cvtColor(rendered_img, cv2.COLOR_BGR2RGB)
-                cv2.imshow("Simulation", rendered_img)
-                cv2.waitKey(1)
+            # if rendered_img is not None:
+            # rendered_img = render_image_with_vision(
+            #     rendered_img, get_fly_vision(fly)
+            # )
+            # rendered_img = cv2.cvtColor(rendered_img, cv2.COLOR_BGR2RGB)
+            # cv2.imshow("Simulation", rendered_img)
+            # cv2.waitKey(1)
 
             if controller.quit:
                 print("Simulation terminated by user.")
                 break
-            if level_arena.quit:
+            if hasattr(level_arena, "quit") and level_arena.quit:
                 print("Target reached. Simulation terminated.")
                 break
 
             progress_bar.update()
 
     print("Simulation finished")
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    ee_pos = np.array([obs["end_effectors"] for obs in obs_hist])
+
+    # fig, axs = plt.subplots(2, 1)
+    # axs[0].plot(ee_pos[:, :, 0])
+    # axs[1].plot(ee_pos[:, :, 1])
+    plt.plot(ee_pos[:, :, 0], ee_pos[:, :, 1])
+    plt.title("relative end effector positions")
+
+    plt.figure()
+    joints = np.array([obs["joints"] for obs in obs_hist])
+    fig, axs = plt.subplots(3, 1)
+    axs[0].plot(joints[:, :, 0])
+    axs[1].plot(joints[:, :, 1])
+    axs[2].plot(joints[:, :, 2])
+    plt.title("joint angles")
+    plt.show()
 
     # Save video
     cam.save_video("./outputs/hybrid_controller.mp4", 0)
