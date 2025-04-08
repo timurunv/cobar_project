@@ -1,8 +1,11 @@
 import flygym
 import numpy as np
 
+
 def get_fly_vision(fly: flygym.Fly):
-    assert fly._curr_visual_input is not None, "fly vision isn't enabled. Make sure `enable_vision` is set to True."
+    assert (
+        fly._curr_visual_input is not None
+    ), "fly vision isn't enabled. Make sure `enable_vision` is set to True."
     return (
         255
         * np.hstack(
@@ -15,10 +18,14 @@ def get_fly_vision(fly: flygym.Fly):
         )
     ).astype(np.uint8)
 
+
 def get_fly_vision_raw(fly: flygym.Fly):
-    assert fly._curr_raw_visual_input is not None, "fly vision isn't enabled. Make sure `render_raw_vision` is set to True."
-    
+    assert (
+        fly._curr_raw_visual_input is not None
+    ), "fly vision isn't enabled. Make sure `render_raw_vision` is set to True."
+
     return np.hstack(tuple(fly._curr_raw_visual_input))
+
 
 def render_image_with_vision(image: np.ndarray, vision: np.ndarray):
     if vision.ndim < 3:

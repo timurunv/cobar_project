@@ -3,7 +3,7 @@ from pynput import keyboard
 from flygym.examples.locomotion import PreprogrammedSteps, CPGNetwork
 import threading
 
-from cobarcontroller import CobarController
+from cobar_controller import CobarController
 
 # Initialize CPG network
 intrinsic_freqs = np.ones(6) * 12 * 1.5
@@ -57,8 +57,8 @@ class KeyBoardController(CobarController):
         self.step_direction = np.zeros(6)
         self.phase_increment = self.timestep / leg_step_time * 2 * np.pi
 
-        self.turning = 0 # 1 is left 0 is stationary -1 is right
-        self.forward = 0 #1 is forward 0 is stationary -1 is backward
+        self.turning = 0  # 1 is left 0 is stationary -1 is right
+        self.forward = 0  # 1 is forward 0 is stationary -1 is backward
         self.gain_right = 0.0
         self.gain_left = 0.0
 
@@ -67,7 +67,9 @@ class KeyBoardController(CobarController):
 
         print("Starting key listener")
         # Start the keyboard listener thread
-        self.listener = keyboard.Listener(on_press=self.on_press, on_release=self.on_release)
+        self.listener = keyboard.Listener(
+            on_press=self.on_press, on_release=self.on_release
+        )
         self.listener.start()
 
         self.quit = False
@@ -89,7 +91,7 @@ class KeyBoardController(CobarController):
         if key == keyboard.Key.esc:
             self.listener.stop()
             self.quit = True
-            
+
     def on_release(self, key):
         # check if key is w, a, s, d
         if key == keyboard.KeyCode.from_char("w"):
@@ -108,17 +110,17 @@ class KeyBoardController(CobarController):
     def set_CPGbias(self):
         if np.abs(self.forward) == 1.0:
             if self.turning == 0:
-                self.gain_left = 1.0*self.forward
-                self.gain_right = 1.0*self.forward
+                self.gain_left = 1.0 * self.forward
+                self.gain_right = 1.0 * self.forward
             else:
                 left_gain_increment = 0.6 * self.forward if self.turning == 1 else 0.0
                 right_gain_increment = 0.6 * self.forward if self.turning == -1 else 0.0
-                self.gain_left = 1.2*self.forward - left_gain_increment
-                self.gain_right = 1.2*self.forward - right_gain_increment
+                self.gain_left = 1.2 * self.forward - left_gain_increment
+                self.gain_right = 1.2 * self.forward - right_gain_increment
         else:
-            self.gain_left = -1.0*self.turning
-            self.gain_right = 1.0*self.turning
-        
+            self.gain_left = -1.0 * self.turning
+            self.gain_right = 1.0 * self.turning
+
     def get_cpg_joint_angles(self):
         action = np.array([self.gain_left, self.gain_right])
 
@@ -167,7 +169,7 @@ class KeyBoardController(CobarController):
 
         self.leg_phases = np.zeros(6)
         self.step_direction = np.zeros(6)
-    
+
     def done_level(self, obs):
         # check if quit is set to true
         if self.quit:

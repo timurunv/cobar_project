@@ -1,6 +1,7 @@
 import flygym
 import numpy as np
 
+
 class CobarFly(flygym.Fly):
     def __init__(self, debug=False, **kwargs):
         super().__init__(

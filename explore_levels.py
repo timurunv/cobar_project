@@ -19,7 +19,6 @@ import cobar_miniproject
 #
 
 if __name__ == "__main__":
-
     if len(sys.argv) > 1:
         level = int(sys.argv[1])
     else:
@@ -38,7 +37,7 @@ if __name__ == "__main__":
         level_arena = levels[level]()
     else:
         level_arena = levels[level](timestep=timestep, fly=fly)
-    
+
     cam = YawOnlyCamera(
         attachment_point=fly.model.worldbody,
         camera_name="camera_back_track_game",
@@ -60,7 +59,7 @@ if __name__ == "__main__":
     obs_hist = []
     info_hist = []
 
-    #create window
+    # create window
     cv2.namedWindow("Simulation", cv2.WINDOW_NORMAL)
 
     with tqdm.tqdm(desc="running simulation") as progress_bar:
@@ -72,10 +71,9 @@ if __name__ == "__main__":
             if controller.done_level(obs):
                 # finish the path integration level
                 break
-            
+
             obs_hist.append(obs)
             info_hist.append(info)
-
 
             rendered_img = sim.render()[0]
             if rendered_img is not None:
