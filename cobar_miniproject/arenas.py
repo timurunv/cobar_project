@@ -73,6 +73,8 @@ def _circ(
 class OdorTargetOnlyArena(ObstacleOdorArena):
     def __init__(
         self,
+        timestep,
+        fly,
         target_distance_range=(29, 31),
         target_angle_range=(-np.pi, np.pi),
         target_marker_size=0.3,
@@ -155,6 +157,8 @@ class ScatteredPillarsArena(ObstacleOdorArena):
 
     def __init__(
         self,
+        timestep,
+        fly,
         target_distance_range=(29, 31),
         target_angle_range=(-np.pi, np.pi),
         target_clearance_radius=4,
@@ -463,6 +467,8 @@ class LoomingBallArena(FlatTerrain):
         self, fly_pos, fly_vel, intercept_pos, start_pos, orientation_vec
     ):
         """Visualize trajectory for debugging."""
+        import matplotlib.pyplot as plt
+
         plt.scatter(fly_pos[0], fly_pos[1], label="fly pos", s=5)
         plt.scatter(
             intercept_pos[0], intercept_pos[1], label="fly interception pos", s=5

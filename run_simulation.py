@@ -2,7 +2,7 @@ from tqdm import tqdm
 import sys
 from pathlib import Path
 from flygym import Fly, Camera, SingleFlySimulation
-from cobar_miniproject import levels
+from cobar_miniproject import level_arenas
 from tqdm import trange
 import importlib
 
@@ -28,7 +28,7 @@ def run_simulation(
         xml_variant="seqik_simple",
     )
 
-    arena = levels[level](seed=seed)
+    arena = level_arenas[level](seed=seed)
 
     cam_params = {"pos": (0, 0, 80)}
 

@@ -1,4 +1,3 @@
-from .base_controller import BaseController
 from .arenas import (
     OdorTargetOnlyArena,
     ScatteredPillarsArena,
@@ -7,11 +6,10 @@ from .arenas import (
     FoodToNestArena,
 )
 
-__all__ = ["BaseController"]
-levels = {
-    0: OdorTargetOnlyArena,
-    1: ScatteredPillarsArena,
-    2: LoomingBallArena,
-    3: HierarchicalArena,
-    4: FoodToNestArena,
+level_arenas = {
+    1: OdorTargetOnlyArena,
+    2: ScatteredPillarsArena,
+    3: LoomingBallArena,
+    4: HierarchicalArena,
+    5: FoodToNestArena,
 }

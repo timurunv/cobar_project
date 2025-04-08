@@ -3,7 +3,7 @@ from pynput import keyboard
 from flygym.examples.locomotion import PreprogrammedSteps, CPGNetwork
 import threading
 
-from cobar_controller import CobarController
+from cobar_miniproject.cobar_controller import CobarController
 
 # Initialize CPG network
 intrinsic_freqs = np.ones(6) * 12 * 1.5
