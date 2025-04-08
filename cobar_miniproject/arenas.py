@@ -99,14 +99,18 @@ class OdorTargetOnlyArena(ObstacleOdorArena):
         )
 
         super().__init__(
-            terrain=FlatTerrain(ground_alpha=0),
+            terrain=FlatTerrain(ground_alpha=1),
             obstacle_positions=np.array([]),
             peak_odor_intensity=np.array([[1, 0]]),
-            odor_source=np.array([[*self.target_position, 1]]),
+            odor_source=np.array([[*self.target_position, 2]]),
             marker_colors=np.array([target_marker_color]),
             marker_size=target_marker_size,
             **kwargs,
         )
+        
+        # set the floor white with full alpha
+        self.root_element.find_all("texture")[0].rgb1 = (1, 1, 1)
+        self.root_element.find_all("texture")[0].rgb2 = (1, 1, 1)
     
     def step(self, dt, physics):
         fly_pos = physics.bind(self.fly._body_sensors[0]).sensordata[:2].copy()
@@ -215,7 +219,7 @@ class ScatteredPillarsArena(ObstacleOdorArena):
 
         ObstacleOdorArena.__init__(
             self,
-            terrain=FlatTerrain(ground_alpha=0),
+            terrain=FlatTerrain(ground_alpha=1),
             obstacle_positions=pillar_positions,
             obstacle_radius=pillar_radius,
             obstacle_height=pillar_height,
@@ -225,6 +229,10 @@ class ScatteredPillarsArena(ObstacleOdorArena):
             marker_size=target_marker_size,
             **kwargs,
         )
+        
+        # set the floor white with full alpha
+        self.root_element.find_all("texture")[0].rgb1 = (1, 1, 1)
+        self.root_element.find_all("texture")[0].rgb2 = (1, 1, 1)
 
     @staticmethod
     def _get_pillar_positions(
@@ -652,7 +660,10 @@ class FoodToNestArena(HierarchicalArena):
             physics.bind(geom).rgba[3] = 0
 
         for body in self.obstacle_bodies:
-            physics.bind(body).mocap_pos[2] = -self.pillar_height
+            physics.bind(body).mocap_pos[2] = -self.pillar_height - 5.0
+        
+        self.move_ball(physics, 0, 0, self.ball_rest_height)
+        self.make_ball_invisible(physics)
 
     def setup_exploration_mode(self, physics):
         physics.bind(self.nest_geom).rgba[3] = 0
