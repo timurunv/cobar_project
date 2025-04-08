@@ -2,6 +2,9 @@
 
 Welcome to the Miniproject for BIOENG-456!
 
-Extra things to install
-
-* `pynput`
+## Setup
+`pynput` is required for the KeyBoardController in `explore_levels.py`. To install it, run:
+```bash
+conda activate flygym
+pip install pynput
+```
