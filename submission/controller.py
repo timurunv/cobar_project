@@ -1,7 +1,9 @@
 import numpy as np
 from cobar_miniproject.base_controller import BaseController
 from .utils import get_cpg, step_cpg
+from .olfaction import compute_olfaction_control_signal
 
+# python run_simulation.py ./submission/ --level 0
 
 class Controller(BaseController):
     def __init__(
@@ -17,10 +19,16 @@ class Controller(BaseController):
         self.preprogrammed_steps = PreprogrammedSteps()
 
     def get_actions(self, obs):
+        action = np.ones((2,)) # default action
+
+        # olfaction
+        weight_olfaction = 1.0 # ideas : weight dependent on intensity (love blindness), internal states
+        action += weight_olfaction * compute_olfaction_control_signal(obs)
+
         joint_angles, adhesion = step_cpg(
             cpg_network=self.cpg_network,
             preprogrammed_steps=self.preprogrammed_steps,
-            action=np.array([1.0, 1.0]),
+            action=action,
         )
 
         return {

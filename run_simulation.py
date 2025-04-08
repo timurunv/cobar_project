@@ -73,7 +73,8 @@ def run_simulation(
         if controller.done_level(obs):
             # finish the path integration level
             break
-
+        
+        del obs['raw_vision']
         obs_hist.append(obs)
         info_hist.append(info)
 
@@ -96,6 +97,7 @@ if __name__ == "__main__":
         "submission_dir",
         type=Path,
         help="Path to the submission directory containing the controller module.",
+        default=str("./submission/"),
     )
     parser.add_argument(
         "--level",
@@ -107,7 +109,7 @@ if __name__ == "__main__":
         "--seed",
         type=int,
         help="Random seed for the simulation.",
-        default=0,
+        default=19,
     )
     parser.add_argument(
         "--max-steps",
@@ -131,6 +133,7 @@ if __name__ == "__main__":
         "--progress",
         action="store_true",
         help="Show progress bar during simulation.",
+        default=True,
     )
     args = parser.parse_args()
 
