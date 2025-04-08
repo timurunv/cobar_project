@@ -640,8 +640,8 @@ class FoodToNestArena(HierarchicalArena):
         self.root_element.asset.add(
             'mesh', name='nest_mesh', file=torus_path, scale=[1, 1, 1]
         )
-        self.nest_geom = self.nest_marker.add("geom", name="nest", type="mesh", mesh="nest_mesh", rgba=[0, 1, 0, 1], density=1.0)
-
+        self.nest_geom = self.nest_marker.add("geom", name="nest", type="mesh", mesh="nest_mesh", rgba=[0, 1, 0, 0])
+        
         self.pillar_height = pillar_height
 
     def pre_visual_render_hook(self, physics):
