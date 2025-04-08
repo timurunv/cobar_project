@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 
-class CobarController(ABC):
+class BaseController(ABC):
     def __init__(self, **kwargs):
         """
         Initialize the CobarController with any necessary parameters.

@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def get_cpg(timestep):
+def get_cpg(timestep, seed=0):
     from flygym.examples.locomotion import CPGNetwork
 
     phase_biases = np.pi * np.array(
@@ -25,7 +25,7 @@ def get_cpg(timestep):
         convergence_coefs=np.ones(6) * 20,
         init_phases=None,
         init_magnitudes=None,
-        seed=0,
+        seed=seed,
     )
 
 

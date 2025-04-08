@@ -3,7 +3,7 @@ from pynput import keyboard
 from flygym.examples.locomotion import PreprogrammedSteps, CPGNetwork
 import threading
 
-from cobar_miniproject.cobar_controller import CobarController
+from cobar_miniproject.base_controller import BaseController
 
 # Initialize CPG network
 intrinsic_freqs = np.ones(6) * 12 * 1.5
@@ -22,8 +22,13 @@ coupling_weights = (phase_biases > 0) * 10
 convergence_coefs = np.ones(6) * 20
 
 
-class KeyBoardController(CobarController):
-    def __init__(self, timestep: float, seed: int, leg_step_time=0.025):
+class KeyBoardController(BaseController):
+    def __init__(
+        self,
+        timestep: float,
+        seed: int = 0,
+        leg_step_time=0.025,
+    ):
         """Controller that listens to your keypresses and uses these to
         modulate CPGs that control fly walking and turning.
 
