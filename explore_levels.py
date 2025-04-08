@@ -102,25 +102,5 @@ if __name__ == "__main__":
 
     print("Simulation finished")
 
-    import numpy as np
-    import matplotlib.pyplot as plt
-
-    ee_pos = np.array([obs["end_effectors"] for obs in obs_hist])
-
-    # fig, axs = plt.subplots(2, 1)
-    # axs[0].plot(ee_pos[:, :, 0])
-    # axs[1].plot(ee_pos[:, :, 1])
-    plt.plot(ee_pos[:, :, 0], ee_pos[:, :, 1])
-    plt.title("relative end effector positions")
-
-    plt.figure()
-    joints = np.array([obs["joints"] for obs in obs_hist])
-    fig, axs = plt.subplots(3, 1)
-    axs[0].plot(joints[:, :, 0])
-    axs[1].plot(joints[:, :, 1])
-    axs[2].plot(joints[:, :, 2])
-    plt.title("joint angles")
-    plt.show()
-
     # Save video
     cam.save_video("./outputs/hybrid_controller.mp4", 0)
