@@ -1,8 +1,10 @@
-from flygym.arena import FlatTerrain
 import numpy as np
+from flygym.examples.vision.arena import ObstacleOdorArena
+from flygym.arena import FlatTerrain
+from .utils import get_random_pos
+from .pillars import PillarsArena
 
-
-class LoomingBallArena(FlatTerrain):
+class PillarsLoomingArena(ObstacleOdorArena):
     """
     Simulates a looming ball scenario where a ball approaches a fly entity from different angles
     with Poisson-distributed spawning events.
@@ -12,25 +14,65 @@ class LoomingBallArena(FlatTerrain):
         self,
         timestep,
         fly,
+        target_distance_range=(29, 31),
+        target_angle_range=(-np.pi, np.pi),
+        target_clearance_radius=4,
+        target_marker_size=0.3,
+        target_marker_color=(1, 0.5, 14 / 255, 1),
+        spawn_pillars=True,
+        pillar_height=3,
+        pillar_radius=0.3,
+        pillars_minimum_separation=6,
+        fly_clearance_radius=4,
         ball_radius=1.0,
         ball_approach_vel=50,
         ball_approach_start_radius=20,
-        ball_overshoot_dist=3,
-        looming_lambda=2.0,
+        ball_overshoot_dist=5,
+        looming_lambda=1.0,
         seed=0,
         approach_angles=np.array([np.pi / 4, 3 * np.pi / 4]),
-        **kwargs
+        **kwargs,
     ):
-        super().__init__(**kwargs)
-
         self.fly = fly
         self.seed = seed
         self.random_state = np.random.RandomState(seed)
         self.dt = timestep
         self.ball_radius = ball_radius
 
+        target_position = get_random_pos(
+            distance_range=target_distance_range,
+            angle_range=target_angle_range,
+            random_state=self.random_state,
+        )
+
+        if spawn_pillars:
+            pillar_positions = PillarsArena._get_pillar_positions(
+                target_position=target_position,
+                target_clearance_radius=target_clearance_radius,
+                pillar_radius=pillar_radius,
+                pillars_minimum_separation=pillars_minimum_separation,
+                fly_clearance_radius=fly_clearance_radius,
+                random_state=self.random_state,
+            )
+        else:
+            pillar_positions = np.array([])
+
+        super().__init__(
+            terrain=FlatTerrain(ground_alpha=0),
+            obstacle_positions=pillar_positions,
+            obstacle_radius=pillar_radius,
+            obstacle_height=pillar_height,
+            odor_source=np.array([[*target_position, 1]]),
+            peak_odor_intensity=np.array([[1, 0]]),
+            marker_colors=np.array([target_marker_color]),
+            marker_size=target_marker_size,
+            **kwargs,
+        )
+
         self._setup_probabilities(looming_lambda)
-        self._setup_trajectory_params(ball_approach_vel, ball_approach_start_radius, ball_overshoot_dist)
+        self._setup_trajectory_params(
+            ball_approach_vel, ball_approach_start_radius, ball_overshoot_dist
+        )
         self._setup_ball_heights()
 
         self.ball_approach_angles = approach_angles
@@ -54,28 +96,38 @@ class LoomingBallArena(FlatTerrain):
         self.n_interception_steps = int(interception_time / self.dt)
         self.n_overshoot_steps = int((overshoot_dist / vel) / self.dt)
 
-        self.ball_trajectory = np.zeros((self.n_interception_steps + self.n_overshoot_steps, 2))
+        self.ball_trajectory = np.zeros(
+            (self.n_interception_steps + self.n_overshoot_steps, 2)
+        )
 
     def _setup_ball_heights(self):
         """Calculate ball positions for visible and resting states."""
         self.ball_rest_height = 10.0
-        self.ball_act_height = -self.ball_rest_height + self.ball_radius + self._get_max_floor_height()
+        self.ball_act_height = self.ball_radius + self._get_max_floor_height()
 
     def _setup_velocity_buffer(self):
         """Setup a fixed-length FIFO buffer for fly velocity estimation."""
-        self.vel_buffer_size = 50
+        self.vel_buffer_size = 500
         self.fly_velocities = np.full((self.vel_buffer_size, 2), np.nan)
         self.fly_velocities_idx = 0
 
     def add_ball(self, ball_radius):
         """Add the ball to the scene with joints and geometry."""
         self.ball_body = self.root_element.worldbody.add(
-            'body', name='ball', pos=[0, 0, self.ball_rest_height]
+            "body",
+            name="ball_mocap",
+            pos=[0, 0, self.ball_rest_height],
+            mocap=True,
         )
-        self.ball_jointx = self.ball_body.add("joint", type="slide", axis=[1, 0, 0], damping=0.01)
-        self.ball_jointy = self.ball_body.add("joint", type="slide", axis=[0, 1, 0], damping=0.01)
-        self.ball_jointz = self.ball_body.add("joint", type="slide", axis=[0, 0, 1], damping=0.01)
-        self.ball_geom = self.ball_body.add("geom", name="ball", type='sphere', size=[ball_radius], rgba=[1, 0, 0, 0])
+
+        self.ball_geom = self.ball_body.add(
+            "geom",
+            name="ball",
+            type="sphere",
+            size=[ball_radius],
+            rgba=[1, 0, 0, 0],
+            density=1.0,
+        )
 
     def spawn_entity(self, entity, rel_pos, rel_angle):
         """Spawn the fly and setup collision pairs."""
@@ -91,11 +143,14 @@ class LoomingBallArena(FlatTerrain):
                 name=f"{ball_geom_name}_{self.fly.name}_{animat_geom_name}",
                 geom1=f"{self.fly.name}/{animat_geom_name}",
                 geom2=ball_geom_name,
+                solimp=[0.995, 0.995, 0.001],
             )
 
     def set_ball_trajectory(self, start_pts, end_pts):
         """Generate a linear trajectory from start to end."""
-        self.ball_trajectory = np.linspace(start_pts, end_pts, self.n_interception_steps + self.n_overshoot_steps)
+        self.ball_trajectory = np.linspace(
+            start_pts, end_pts, self.n_interception_steps + self.n_overshoot_steps
+        )
 
     def make_ball_visible(self, physics):
         physics.bind(self.ball_geom).rgba[3] = 1
@@ -105,9 +160,7 @@ class LoomingBallArena(FlatTerrain):
 
     def move_ball(self, physics, x, y, z):
         """Move ball to the desired location using joint positions."""
-        physics.bind(self.ball_jointx).qpos = x
-        physics.bind(self.ball_jointy).qpos = y
-        physics.bind(self.ball_jointz).qpos = z
+        physics.bind(self.ball_body).mocap_pos = np.array([x, y, z])
 
     def _get_mean_fly_velocity(self):
         """Compute average fly velocity from buffer."""
@@ -125,18 +178,18 @@ class LoomingBallArena(FlatTerrain):
         start_angle = self.random_state.uniform(low=rel_angles[0], high=rel_angles[1])
 
         interception_pos = fly_pos + fly_vel * self.n_interception_steps * self.dt
-        start_pos = interception_pos + self.ball_approach_start_radius * np.array([
-            np.cos(start_angle), np.sin(start_angle)
-        ])
-        end_pos = interception_pos - self.overshoot_dist * np.array([
-            np.cos(start_angle), np.sin(start_angle)
-        ])
+        start_pos = interception_pos + self.ball_approach_start_radius * np.array(
+            [np.cos(start_angle), np.sin(start_angle)]
+        )
+        end_pos = interception_pos - self.overshoot_dist * np.array(
+            [np.cos(start_angle), np.sin(start_angle)]
+        )
         return start_pos, end_pos, interception_pos, start_angle
 
     def step(self, dt, physics):
         """Main loop: updates ball state, triggers looming events, and moves the ball."""
         # Update fly velocity buffer
-        fly_vel = physics.bind(self.fly._body_sensors[0]).sensordata[:2].copy()
+        fly_vel = physics.bind(self.fly._body_sensors[1]).sensordata[:2].copy()
         self.fly_velocities[self.fly_velocities_idx % self.vel_buffer_size] = fly_vel
         self.fly_velocities_idx += 1
 
@@ -149,16 +202,19 @@ class LoomingBallArena(FlatTerrain):
             fly_or_vec = physics.bind(self.fly._body_sensors[4]).sensordata.copy()
             fly_vel_mean = self._get_mean_fly_velocity()
 
-            start_pts, end_pts, interception_pos, angle = self._compute_trajectory_from_fly(
-                fly_pos, fly_vel_mean, fly_or_vec
-            )
+            (
+                start_pts,
+                end_pts,
+                interception_pos,
+                angle,
+            ) = self._compute_trajectory_from_fly(fly_pos, fly_vel_mean, fly_or_vec)
 
             self.set_ball_trajectory(start_pts, end_pts)
-            self.move_ball(physics, *start_pts, -self.ball_act_height)
+            self.move_ball(physics, *start_pts, self.ball_act_height)
             self.ball_traj_advancement += 1
 
             # Optional: visualize
-            #self._plot_trajectory_debug(fly_pos, fly_vel_mean, interception_pos, start_pts, fly_or_vec)
+            # self._plot_trajectory_debug(fly_pos, fly_vel_mean, interception_pos, start_pts, fly_or_vec)
 
         elif self.is_looming:
             self._advance_ball(physics)
@@ -171,19 +227,41 @@ class LoomingBallArena(FlatTerrain):
         self.move_ball(physics, pos[0], pos[1], self.ball_act_height)
         self.ball_traj_advancement += 1
 
-        if self.ball_traj_advancement >= self.n_interception_steps + self.n_overshoot_steps:
+        if (
+            self.ball_traj_advancement
+            >= self.n_interception_steps + self.n_overshoot_steps
+        ):
             self.is_looming = False
             self.make_ball_invisible(physics)
             self.move_ball(physics, 0, 0, self.ball_rest_height)
 
-    def _plot_trajectory_debug(self, fly_pos, fly_vel, intercept_pos, start_pos, orientation_vec):
+    def _plot_trajectory_debug(
+        self, fly_pos, fly_vel, intercept_pos, start_pos, orientation_vec
+    ):
         """Visualize trajectory for debugging."""
-        plt.scatter(fly_pos[0], fly_pos[1], label='fly pos', s=5)
-        plt.scatter(intercept_pos[0], intercept_pos[1], label='fly interception pos', s=5)
-        plt.plot(self.ball_trajectory[:, 0], self.ball_trajectory[:, 1], label='ball trajectory')
-        plt.scatter(start_pos[0], start_pos[1], label='ball start pos', s=5)
-        plt.arrow(fly_pos[0], fly_pos[1], fly_vel[0], fly_vel[1], head_width=0.5, fc='blue')
-        plt.arrow(intercept_pos[0], intercept_pos[1], orientation_vec[0], orientation_vec[1], head_width=0.5, fc='green')
+        import matplotlib.pyplot as plt
+
+        plt.scatter(fly_pos[0], fly_pos[1], label="fly pos", s=5)
+        plt.scatter(
+            intercept_pos[0], intercept_pos[1], label="fly interception pos", s=5
+        )
+        plt.plot(
+            self.ball_trajectory[:, 0],
+            self.ball_trajectory[:, 1],
+            label="ball trajectory",
+        )
+        plt.scatter(start_pos[0], start_pos[1], label="ball start pos", s=5)
+        plt.arrow(
+            fly_pos[0], fly_pos[1], fly_vel[0], fly_vel[1], head_width=0.5, fc="blue"
+        )
+        plt.arrow(
+            intercept_pos[0],
+            intercept_pos[1],
+            orientation_vec[0],
+            orientation_vec[1],
+            head_width=0.5,
+            fc="green",
+        )
         plt.legend()
         plt.show()
 

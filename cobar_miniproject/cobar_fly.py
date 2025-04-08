@@ -1,7 +1,8 @@
-import flygym
+from flygym import Fly, Simulation
 import numpy as np
 
-class CobarFly(flygym.Fly):
+
+class CobarFly(Fly):
     def __init__(self, debug=False, **kwargs):
         super().__init__(
             contact_sensor_placements=[
@@ -72,7 +73,79 @@ class CobarFly(flygym.Fly):
         )
         self.model.visual.map.zfar = 10  # type: ignore
 
-    def get_observation(self, sim: flygym.Simulation):
+        self._geoms_to_hide = [
+            'A1A2',
+            'A3',
+            'A4',
+            'A5',
+            'A6',
+            'Haustellum',
+            'Head',
+            'LArista',
+            'LEye',
+            'LFCoxa',
+            'LFFemur',
+            'LFTarsus1',
+            'LFTarsus2',
+            'LFTarsus3',
+            'LFTarsus4',
+            'LFTarsus5',
+            'LFTibia',
+            'LFuniculus',
+            'LHCoxa',
+            'LHFemur',
+            'LHTarsus1',
+            'LHTarsus2',
+            'LHTarsus3',
+            'LHTarsus4',
+            'LHTarsus5',
+            'LHTibia',
+            'LHaltere',
+            'LMCoxa',
+            'LMFemur',
+            'LMTarsus1',
+            'LMTarsus2',
+            'LMTarsus3',
+            'LMTarsus4',
+            'LMTarsus5',
+            'LMTibia',
+            'LPedicel',
+            'LWing',
+            'RArista',
+            'REye',
+            'RFCoxa',
+            'RFFemur',
+            'RFTarsus1',
+            'RFTarsus2',
+            'RFTarsus3',
+            'RFTarsus4',
+            'RFTarsus5',
+            'RFTibia',
+            'RFuniculus',
+            'RHCoxa',
+            'RHFemur',
+            'RHTarsus1',
+            'RHTarsus2',
+            'RHTarsus3',
+            'RHTarsus4',
+            'RHTarsus5',
+            'RHTibia',
+            'RHaltere',
+            'RMCoxa',
+            'RMFemur',
+            'RMTarsus1',
+            'RMTarsus2',
+            'RMTarsus3',
+            'RMTarsus4',
+            'RMTarsus5',
+            'RMTibia',
+            'RPedicel',
+            'RWing',
+            'Rostrum',
+            'Thorax',
+        ]
+
+    def get_observation(self, sim: Simulation):
         observation = super().get_observation(sim)
 
         # if we're running the fly in debug mode (for development) it will return all raw observations
@@ -111,7 +184,7 @@ class CobarFly(flygym.Fly):
 
         return observation_to_return
 
-    def post_step(self, sim: flygym.Simulation):
+    def post_step(self, sim: Simulation):
         obs = self.get_observation(sim)
         reward = self.get_reward()
         terminated = self.is_terminated()
