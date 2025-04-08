@@ -1,7 +1,7 @@
 import argparse
-import sys
 import cv2
 import tqdm
+from cobar_miniproject.arenas import level_arenas
 from cobar_miniproject.keyboard_controller import KeyBoardController
 from cobar_miniproject.cobar_fly import CobarFly
 from cobar_miniproject.vision import (
@@ -9,7 +9,6 @@ from cobar_miniproject.vision import (
     get_fly_vision_raw,
     render_image_with_vision,
 )
-from cobar_miniproject import level_arenas
 from flygym import YawOnlyCamera, SingleFlySimulation
 from flygym.arena import FlatTerrain
 
