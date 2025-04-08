@@ -348,7 +348,15 @@ class LoomingBallArena(OdorTargetOnlyArena):
             **kwargs,
         )
 
-        self.ball_specific_init()
+        self.ball_specific_init(
+            timestep=timestep,
+            ball_radius=ball_radius,
+            ball_approach_vel=ball_approach_vel,
+            ball_approach_start_radius=ball_approach_start_radius,
+            ball_overshoot_dist=ball_overshoot_dist,
+            looming_lambda=looming_lambda,
+            approach_angles=approach_angles,
+        )
 
     def ball_specific_init(
         self,

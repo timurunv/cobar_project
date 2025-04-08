@@ -38,11 +38,14 @@ def run_simulation(
     else:
         # levels 2-4 need the timestep
         level_arena = levels[level](fly=fly, timestep=timestep)
+    
+    cam_params = {"pos": (0, 0, 80)}
 
     cam = Camera(
-        attachment_point=fly.model.worldbody,
+        attachment_point=level_arena.root_element.worldbody,
         camera_name="camera_top_zoomout",
         targeted_fly_names=[fly.name],
+        camera_parameters=cam_params,
         play_speed=0.2,
     )
 
@@ -107,7 +110,7 @@ if __name__ == "__main__":
         default=0,
     )
     parser.add_argument(
-        "--max_steps",
+        "--max-steps",
         type=int,
         help="Maximum number of steps to run the simulation.",
         default=10000,
@@ -119,7 +122,7 @@ if __name__ == "__main__":
         default=False,
     )
     parser.add_argument(
-        "--output_dir",
+        "--output-dir",
         type=str,
         help="Directory to save the simulation outputs (default: 'outputs').",
         default="outputs",
@@ -127,8 +130,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--progress",
         action="store_true",
-        help="Show progress bar during simulation (default: True).",
-        default=True,
+        help="Show progress bar during simulation.",
     )
     args = parser.parse_args()
 
@@ -138,5 +140,6 @@ if __name__ == "__main__":
         seed=args.seed,
         debug=args.debug,
         output_dir=args.output_dir,
+        max_steps=args.max_steps,
         progress=args.progress,
     )
