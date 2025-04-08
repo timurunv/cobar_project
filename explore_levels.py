@@ -13,11 +13,12 @@ from flygym import YawOnlyCamera, SingleFlySimulation
 from flygym.arena import FlatTerrain
 
 # OPTIONS
-#
-# render the camera
-# render the fly vision
-# render the raw fly vision
-#
+# what to display as the simulation is running
+ONLY_CAMERA = 0
+WITH_FLY_VISION = 1
+WITH_RAW_VISION = 2
+
+VISUALISATION_MODE = WITH_FLY_VISION
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the fly simulation.")
@@ -67,7 +68,7 @@ if __name__ == "__main__":
     info_hist = []
 
     # create window
-    # cv2.namedWindow("Simulation", cv2.WINDOW_NORMAL)
+    cv2.namedWindow("Simulation", cv2.WINDOW_NORMAL)
 
     with tqdm.tqdm(desc="running simulation") as progress_bar:
         while True:
@@ -83,13 +84,18 @@ if __name__ == "__main__":
             info_hist.append(info)
 
             rendered_img = sim.render()[0]
-            # if rendered_img is not None:
-            # rendered_img = render_image_with_vision(
-            #     rendered_img, get_fly_vision(fly)
-            # )
-            # rendered_img = cv2.cvtColor(rendered_img, cv2.COLOR_BGR2RGB)
-            # cv2.imshow("Simulation", rendered_img)
-            # cv2.waitKey(1)
+            if rendered_img is not None:
+                if VISUALISATION_MODE == WITH_FLY_VISION:
+                    rendered_img = render_image_with_vision(
+                        rendered_img, get_fly_vision(fly)
+                    )
+                elif VISUALISATION_MODE == WITH_RAW_VISION:
+                    rendered_img = render_image_with_vision(
+                        rendered_img, get_fly_vision_raw(fly)
+                    )
+                rendered_img = cv2.cvtColor(rendered_img, cv2.COLOR_BGR2RGB)
+                cv2.imshow("Simulation", rendered_img)
+                cv2.waitKey(1)
 
             if controller.quit:
                 print("Simulation terminated by user.")
