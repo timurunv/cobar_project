@@ -3,13 +3,15 @@ from cobar_miniproject.base_controller import BaseController
 from .utils import get_cpg, step_cpg
 from .olfaction import compute_olfaction_control_signal
 
-# python run_simulation.py ./submission/ --level 0
+# python run_simulation.py ./submission/ --level 0 --progress
+#python3 run_simulation.py ./submission/ --level 0 --progress
 
 class Controller(BaseController):
     def __init__(
         self,
         timestep=1e-4,
         seed=0,
+        action = np.ones((2,)),
     ):
         from flygym.examples.locomotion import PreprogrammedSteps
 
@@ -17,18 +19,18 @@ class Controller(BaseController):
         self.quit = False
         self.cpg_network = get_cpg(timestep=timestep, seed=seed)
         self.preprogrammed_steps = PreprogrammedSteps()
+        self.action = action
 
     def get_actions(self, obs):
-        action = np.ones((2,)) # default action
-
+        
         # olfaction
-        weight_olfaction = 1.0 # ideas : weight dependent on intensity (love blindness), internal states
-        action += weight_olfaction * compute_olfaction_control_signal(obs)
+        weight_olfaction = 10.0 # ideas : weight dependent on intensity (love blindness), internal states
+        self.action += weight_olfaction * compute_olfaction_control_signal(obs)
 
         joint_angles, adhesion = step_cpg(
             cpg_network=self.cpg_network,
             preprogrammed_steps=self.preprogrammed_steps,
-            action=action,
+            action=self.action,
         )
 
         return {

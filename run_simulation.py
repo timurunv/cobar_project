@@ -75,8 +75,8 @@ def run_simulation(
             break
         
         del obs['raw_vision']
-        obs_hist.append(obs)
-        info_hist.append(info)
+        #obs_hist.append(obs)
+        #info_hist.append(info)
 
         if hasattr(controller, "quit") and controller.quit:
             print("Simulation terminated by user.")
