@@ -24,13 +24,17 @@ convergence_coefs = np.ones(6) * 20
 
 class KeyBoardController(CobarController):
     def __init__(self, timestep: float, seed: int, leg_step_time=0.025):
-        """Controller that listens to your keypresses and uses these to modulate CPGs that control
-        fly walking and turning.
+        """Controller that listens to your keypresses and uses these to
+        modulate CPGs that control fly walking and turning.
 
-        Args:
-            timestep (float): timestep of the simulation
-            seed (int): random seed
-            leg_step_time (float, optional): How long is the duration of each step. Defaults to 0.025.
+        Parameters
+        ----------
+        timestep : float
+            Timestep of the simulation.
+        seed : int
+            Random seed.
+        leg_step_time : float, optional
+            Duration of each step, by default 0.025.
         """
         self.timestep = timestep
         self.preprogrammed_steps = PreprogrammedSteps()
@@ -107,7 +111,7 @@ class KeyBoardController(CobarController):
             with self.lock:
                 self.turning = 0
 
-    def set_CPGbias(self):
+    def set_cpg_bias(self):
         if np.abs(self.forward) == 1.0:
             if self.turning == 0:
                 self.gain_left = 1.0 * self.forward
@@ -158,7 +162,7 @@ class KeyBoardController(CobarController):
         }
 
     def get_actions(self, obs):
-        self.set_CPGbias()
+        self.set_cpg_bias()
         return self.get_cpg_joint_angles()
 
     def reset(self, seed=None, init_phases=None, init_magnitudes=None, **kwargs):

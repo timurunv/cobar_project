@@ -1,8 +1,8 @@
-import flygym
+from flygym import Fly
 import numpy as np
 
 
-def get_fly_vision(fly: flygym.Fly):
+def get_fly_vision(fly: Fly):
     assert (
         fly._curr_visual_input is not None
     ), "fly vision isn't enabled. Make sure `enable_vision` is set to True."
@@ -19,7 +19,7 @@ def get_fly_vision(fly: flygym.Fly):
     ).astype(np.uint8)
 
 
-def get_fly_vision_raw(fly: flygym.Fly):
+def get_fly_vision_raw(fly: Fly):
     assert (
         fly._curr_raw_visual_input is not None
     ), "fly vision isn't enabled. Make sure `render_raw_vision` is set to True."
