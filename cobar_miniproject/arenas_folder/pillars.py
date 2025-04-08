@@ -158,7 +158,10 @@ class PillarsArena(ObstacleOdorArena):
         while True:
             argwhere = np.argwhere(im1 & im2)
             try:
-                p = argwhere[random_state.choice(len(argwhere)), ::-1] * res + (xmin, ymin)
+                p = argwhere[random_state.choice(len(argwhere)), ::-1] * res + (
+                    xmin,
+                    ymin,
+                )
             except ValueError:
                 break
             pillars_xy.append(p)

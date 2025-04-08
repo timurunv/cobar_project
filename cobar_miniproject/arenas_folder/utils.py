@@ -22,7 +22,9 @@ def get_random_pos(
     np.ndarray
         The target position in the form of [x, y].
     """
-    p = random_state.uniform(*distance_range) * np.exp(1j * random_state.uniform(*angle_range))
+    p = random_state.uniform(*distance_range) * np.exp(
+        1j * random_state.uniform(*angle_range)
+    )
     return np.array([p.real, p.imag], float)
 
 

@@ -4,6 +4,7 @@ from flygym.arena import FlatTerrain
 from .utils import get_random_pos
 from .pillars import PillarsArena
 
+
 class PillarsLoomingArena(ObstacleOdorArena):
     """
     Simulates a looming ball scenario where a ball approaches a fly entity from different angles
