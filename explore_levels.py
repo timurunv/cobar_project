@@ -35,7 +35,7 @@ if __name__ == "__main__":
     if level <= -1:
         level_arena = FlatTerrain()
     elif level <= 1:
-        level_arena = levels[level]()
+        level_arena = levels[level](fly=fly)
     else:
         level_arena = levels[level](timestep=timestep, fly=fly)
     
@@ -76,7 +76,6 @@ if __name__ == "__main__":
             obs_hist.append(obs)
             info_hist.append(info)
 
-
             rendered_img = sim.render()[0]
             if rendered_img is not None:
                 rendered_img = render_image_with_vision(
@@ -89,6 +88,10 @@ if __name__ == "__main__":
             if controller.quit:
                 print("Simulation terminated by user.")
                 break
+            if level_arena.quit:
+                print("Target reached. Simulation terminated.")
+                break
+
             progress_bar.update()
 
     print("Simulation finished")

@@ -1,5 +1,7 @@
 import cv2
 import numpy as np
+import os
+
 from flygym.arena import FlatTerrain
 from flygym.examples.vision.arena import ObstacleOdorArena
 
@@ -73,30 +75,49 @@ def _circ(
 class OdorTargetOnlyArena(ObstacleOdorArena):
     def __init__(
         self,
+        fly,
         target_distance_range=(29, 31),
         target_angle_range=(-np.pi, np.pi),
         target_marker_size=0.3,
         target_marker_color=(1, 0.5, 14 / 255, 1),
+        to_target_distance = 2.0,
         seed=None,
         **kwargs,
     ):
-        rng = np.random.default_rng(seed)
 
-        target_position = _get_random_target_position(
+        self.fly = fly 
+        self.quit = False
+        self.to_target_distance = to_target_distance
+
+        self.seed = seed
+        self.rng = np.random.default_rng(seed)
+
+        self.target_position = _get_random_target_position(
             distance_range=target_distance_range,
             angle_range=target_angle_range,
-            rng=rng,
+            rng=self.rng,
         )
 
         super().__init__(
             terrain=FlatTerrain(ground_alpha=0),
             obstacle_positions=np.array([]),
             peak_odor_intensity=np.array([[1, 0]]),
-            odor_source=np.array([[*target_position, 1]]),
+            odor_source=np.array([[*self.target_position, 1]]),
             marker_colors=np.array([target_marker_color]),
             marker_size=target_marker_size,
             **kwargs,
         )
+    
+    def step(self, dt, physics):
+        fly_pos = physics.bind(self.fly._body_sensors[0]).sensordata[:2].copy()
+        if np.linalg.norm(self.target_position - fly_pos) < self.to_target_distance:
+            self.quit = True
+    
+    def reset(self, physics, seed=None):
+        """Reset the environment and optionally reseed."""
+        if seed is not None:
+            self.seed = seed
+        self.rng = np.random.default_rng(self.seed)
 
 
 class ScatteredPillarsArena(ObstacleOdorArena):
@@ -155,6 +176,7 @@ class ScatteredPillarsArena(ObstacleOdorArena):
 
     def __init__(
         self,
+        fly,
         target_distance_range=(29, 31),
         target_angle_range=(-np.pi, np.pi),
         target_clearance_radius=4,
@@ -165,31 +187,39 @@ class ScatteredPillarsArena(ObstacleOdorArena):
         pillars_minimum_separation=6,
         fly_clearance_radius=4,
         seed=None,
+        to_target_distance=2.0,
         **kwargs,
     ):
-        rng = np.random.default_rng(seed)
 
-        target_position = _get_random_target_position(
+        self.fly = fly
+        self.quit = False
+        self.to_target_distance = to_target_distance
+
+        self.seed = seed
+        self.rng = np.random.default_rng(seed)
+
+        self.target_position = _get_random_target_position(
             distance_range=target_distance_range,
             angle_range=target_angle_range,
-            rng=rng,
+            rng=self.rng,
         )
 
         pillar_positions = self._get_pillar_positions(
-            target_position=target_position,
+            target_position=self.target_position,
             target_clearance_radius=target_clearance_radius,
             pillar_radius=pillar_radius,
             pillars_minimum_separation=pillars_minimum_separation,
             fly_clearance_radius=fly_clearance_radius,
-            rng=rng,
+            rng=self.rng,
         )
 
-        super().__init__(
+        ObstacleOdorArena.__init__(
+            self,
             terrain=FlatTerrain(ground_alpha=0),
             obstacle_positions=pillar_positions,
             obstacle_radius=pillar_radius,
             obstacle_height=pillar_height,
-            odor_source=np.array([[*target_position, 1]]),
+            odor_source=np.array([[*self.target_position, 1]]),
             peak_odor_intensity=np.array([[1, 0]]),
             marker_colors=np.array([target_marker_color]),
             marker_size=target_marker_size,
@@ -265,8 +295,19 @@ class ScatteredPillarsArena(ObstacleOdorArena):
 
         return np.array(pillars_xy)
 
+    def step(self, dt, physics):
+        fly_pos = physics.bind(self.fly._body_sensors[0]).sensordata[:2].copy()
+        if np.linalg.norm(self.target_position - fly_pos) < self.to_target_distance:
+            self.quit = True
+    
+    def reset(self, physics, seed=None):
+        """Reset the environment and optionally reseed."""
+        if seed is not None:
+            self.seed = seed
+        self.rng = np.random.default_rng(self.seed)
 
-class LoomingBallArena(FlatTerrain):
+
+class LoomingBallArena(OdorTargetOnlyArena):
     """
     Simulates a looming ball scenario where a ball approaches a fly entity from different angles
     with Poisson-distributed spawning events.
@@ -276,20 +317,44 @@ class LoomingBallArena(FlatTerrain):
         self,
         timestep,
         fly,
+        target_distance_range=(29, 31),
+        target_angle_range=(-np.pi, np.pi),
+        target_marker_size=0.3,
+        target_marker_color=(1, 0.5, 14 / 255, 1),
+        to_target_distance = 2.0,
         ball_radius=1.0,
         ball_approach_vel=50,
         ball_approach_start_radius=20,
         ball_overshoot_dist=5,
         looming_lambda=1.0,
-        seed=0,
+        seed=None,
         approach_angles=np.array([np.pi / 4, 3 * np.pi / 4]),
         **kwargs
     ):
-        super().__init__(**kwargs)
+        OdorTargetOnlyArena.__init__(
+            self,
+            fly=fly,
+            target_distance_range=target_distance_range,
+            target_angle_range=target_angle_range,
+            target_marker_size=target_marker_size,
+            target_marker_color=target_marker_color,
+            to_target_distance=to_target_distance,
+            **kwargs
+        )
 
-        self.fly = fly
-        self.seed = seed
-        self.random_state = np.random.RandomState(seed)
+        self.ball_specific_init()
+    
+    def ball_specific_init(
+        self,
+        timestep,
+        ball_radius,
+        ball_approach_vel,
+        ball_approach_start_radius,
+        ball_overshoot_dist,
+        looming_lambda,
+        approach_angles,
+    ):
+          
         self.dt = timestep
         self.ball_radius = ball_radius
 
@@ -339,23 +404,6 @@ class LoomingBallArena(FlatTerrain):
 
         self.ball_geom = self.ball_body.add("geom", name="ball", type='sphere', size=[ball_radius], rgba=[1, 0, 0, 0], density=1.0)
 
-    def spawn_entity(self, entity, rel_pos, rel_angle):
-        """Spawn the fly and setup collision pairs."""
-        super().spawn_entity(entity, rel_pos, rel_angle)
-        self._add_contacts()
-
-    def _add_contacts(self):
-        """Add contact pairs between the ball and key fly body parts."""
-        ball_geom_name = self.ball_geom.name
-        for animat_geom_name in ["Head", "Thorax", "A1A2", "A3", "A4", "A5", "A6"]:
-            self.root_element.contact.add(
-                "pair",
-                name=f"{ball_geom_name}_{self.fly.name}_{animat_geom_name}",
-                geom1=f"{self.fly.name}/{animat_geom_name}",
-                geom2=ball_geom_name,
-                solimp=[0.995, 0.995, 0.001],
-            )
-
     def set_ball_trajectory(self, start_pts, end_pts):
         """Generate a linear trajectory from start to end."""
         self.ball_trajectory = np.linspace(start_pts, end_pts, self.n_interception_steps + self.n_overshoot_steps)
@@ -376,14 +424,16 @@ class LoomingBallArena(FlatTerrain):
 
     def _should_trigger_ball(self):
         """Check if ball should start looming based on Poisson process."""
-        return self.random_state.rand() > self.p_no_looming and not self.is_looming
+        return self.rng.uniform() > self.p_no_looming and not self.is_looming
 
     def _compute_trajectory_from_fly(self, fly_pos, fly_vel, fly_or_vec):
         """Generate start/end points of the ball trajectory based on fly state."""
         fly_roll = np.arctan2(fly_or_vec[1], fly_or_vec[0])
-        approach_side = self.random_state.choice([-1, 1])
+        approach_side = self.rng.choice([-1, 1])
         rel_angles = self.ball_approach_angles * approach_side + fly_roll
-        start_angle = self.random_state.uniform(low=rel_angles[0], high=rel_angles[1])
+        if approach_side == -1:
+            rel_angles = rel_angles[::-1]
+        start_angle = self.rng.uniform(low=rel_angles[0], high=rel_angles[1])
 
         interception_pos = fly_pos + fly_vel * self.n_interception_steps * self.dt
         start_pos = interception_pos + self.ball_approach_start_radius * np.array([
@@ -396,6 +446,9 @@ class LoomingBallArena(FlatTerrain):
 
     def step(self, dt, physics):
         """Main loop: updates ball state, triggers looming events, and moves the ball."""
+
+        OdorTargetOnlyArena.step(self, dt, physics)
+
         # Update fly velocity buffer
         fly_vel = physics.bind(self.fly._body_sensors[1]).sensordata[:2].copy()
         self.fly_velocities[self.fly_velocities_idx % self.vel_buffer_size] = fly_vel
@@ -452,7 +505,7 @@ class LoomingBallArena(FlatTerrain):
         """Reset the environment and optionally reseed."""
         if seed is not None:
             self.seed = seed
-        self.random_state = np.random.RandomState(self.seed)
+        self.rng = np.random.default_rng(self.seed)
 
         self.is_looming = False
         self.ball_traj_advancement = 0
@@ -461,8 +514,157 @@ class LoomingBallArena(FlatTerrain):
         self.move_ball(physics, 0, 0, self.ball_rest_height)
 
 
-class HierarchicalArena():
-    pass
+class HierarchicalArena(ScatteredPillarsArena, LoomingBallArena):
+    """
+    A hierarchical arena that combines the features of both OdorTargetOnlyArena and ScatteredPillarsArena.
+    This class allows for a more complex environment with both target and scattered pillars.
+    """
 
-class FoodToNestArena():
-    pass
+    def __init__(self,
+        timestep,
+        fly,
+        target_distance_range=(29, 31),
+        target_angle_range=(-np.pi, np.pi),
+        target_clearance_radius=4,
+        target_marker_size=0.3,
+        target_marker_color=(1, 0.5, 14 / 255, 1),
+        pillar_height=3,
+        pillar_radius=0.3,
+        pillars_minimum_separation=6,
+        fly_clearance_radius=4,
+        seed=None,
+        to_target_distance=2.0,
+        ball_radius=1.0,
+        ball_approach_vel=50,
+        ball_approach_start_radius=20,
+        ball_overshoot_dist=5,
+        looming_lambda=1.0,
+        approach_angles=np.array([np.pi / 4, 3 * np.pi / 4]),
+        **kwargs,
+    ):
+
+        ScatteredPillarsArena.__init__(self,
+            fly=fly,
+            target_distance_range=target_distance_range,
+            target_angle_range=target_angle_range,
+            target_clearance_radius=target_clearance_radius,
+            target_marker_size=target_marker_size,
+            target_marker_color=target_marker_color,
+            pillar_height=pillar_height,
+            pillar_radius=pillar_radius,
+            pillars_minimum_separation=pillars_minimum_separation,
+            fly_clearance_radius=fly_clearance_radius,
+            seed=seed,
+            **kwargs,
+        )
+
+        self.ball_specific_init(
+            timestep=timestep,
+            ball_radius=ball_radius,
+            ball_approach_vel=ball_approach_vel,
+            ball_approach_start_radius=ball_approach_start_radius,
+            ball_overshoot_dist=ball_overshoot_dist,
+            looming_lambda=looming_lambda,
+            approach_angles=approach_angles,
+        )
+
+    def step(self, dt, physics):
+        """Update the arena state and check for target acquisition."""
+        LoomingBallArena.step(self, dt, physics)
+
+class FoodToNestArena(HierarchicalArena):
+    def __init__(self,
+        timestep,
+        fly,
+        target_distance_range=(29, 31),
+        target_angle_range=(-np.pi, np.pi),
+        target_clearance_radius=4,
+        target_marker_size=0.3,
+        target_marker_color=(1, 0.5, 14 / 255, 1),
+        pillar_height=3,
+        pillar_radius=0.3,
+        pillars_minimum_separation=6,
+        fly_clearance_radius=4,
+        seed=None,
+        to_target_distance=2.0,
+        ball_radius=1.0,
+        ball_approach_vel=50,
+        ball_approach_start_radius=20,
+        ball_overshoot_dist=5,
+        looming_lambda=1.0,
+        approach_angles=np.array([np.pi / 4, 3 * np.pi / 4]),
+        **kwargs,
+    ):
+
+        HierarchicalArena.__init__(self,
+            timestep=timestep,
+            fly=fly,
+            target_distance_range=target_distance_range,
+            target_angle_range=target_angle_range,
+            target_clearance_radius=target_clearance_radius,
+            target_marker_size=target_marker_size,
+            target_marker_color=target_marker_color,
+            pillar_height=pillar_height,
+            pillar_radius=pillar_radius,
+            pillars_minimum_separation=pillars_minimum_separation,
+            fly_clearance_radius=fly_clearance_radius,
+            seed=seed,
+            to_target_distance=to_target_distance,
+            ball_radius=ball_radius,
+            ball_approach_vel=ball_approach_vel,
+            ball_approach_start_radius=ball_approach_start_radius,
+            ball_overshoot_dist=ball_overshoot_dist,
+            looming_lambda=looming_lambda,
+            approach_angles=approach_angles,
+        )
+
+        self.state = "exploration" # or "returning"
+
+        self.nest_position = np.array([0, 0])
+        # add nest indicator
+        self.nest_marker = self.root_element.worldbody.add(
+            'body', pos=[0, 0, 2],
+        )
+        torus_path = os.path.dirname(__file__) + "/../assets/cone.stl"
+        self.root_element.asset.add(
+            'mesh', name='nest_mesh', file=torus_path, scale=[1, 1, 1]
+        )
+        self.nest_geom = self.nest_marker.add("geom", name="nest", type="mesh", mesh="nest_mesh", rgba=[0, 1, 0, 1], density=1.0)
+
+        self.pillar_height = pillar_height
+
+    def setup_return_mode(self, physics):
+        physics.bind(self.nest_geom).rgba[3] = 1
+        for geom in self._odor_marker_geoms:
+            physics.bind(geom).rgba[3] = 0
+
+        for body in self.obstacle_bodies:
+            physics.bind(body).mocap_pos[2] = -self.pillar_height
+
+
+    def setup_exploration_mode(self, physics):
+        physics.bind(self.nest_geom).rgba[3] = 0
+        for geom in self._odor_marker_geoms:
+            physics.bind(geom).rgba[3] = 1
+        for body in self.obstacle_bodies:
+            physics.bind(body).mocap_pos[2] = self.pillar_height
+    
+    def reset(self, physics, seed=None):
+        """Reset the environment and optionally reseed."""
+        HierarchicalArena.reset(self, physics, seed)
+        self.state = "exploration"
+        self.setup_exploration_mode(physics)
+
+    def step(self, dt, physics):
+        fly_pos = physics.bind(self.fly._body_sensors[0]).sensordata[:2].copy()
+        if self.state == "exploration":
+            if np.linalg.norm(self.target_position - fly_pos) < self.to_target_distance:
+                self.state = "returning"
+                self.setup_exploration_mode(physics)
+                LoomingBallArena.step(self, dt, physics)
+
+        if self.state == "returning":
+            if np.linalg.norm(self.nest_position - fly_pos) < self.to_target_distance:
+                self.quit = True
+        
+            
