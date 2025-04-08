@@ -27,6 +27,8 @@ python run_simulation.py <submission_folder> --level <level> --seed <seed> --pro
 
 Replace `<submission_folder>` with the path to your submission folder. An example submission folder is provided in the `submission` directory. It contains a controller that walks forward regardless of the observations it receives. You may use that as a starting point for your own controller.
 
+A `test_controller.ipynb` notebook is provided to help you test your controller. You may for example use it to get the list of observations over time and plot them when designing your controller.
+
 ## Submission
 The submission folder should contain the following files:
 - controller.py: The controller code. It should contain a class named `Controller` that subclasses `BaseController` and implements the `get_action` method and `done_level` method.
