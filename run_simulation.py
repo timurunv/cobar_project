@@ -9,12 +9,15 @@ from cobar_miniproject.cobar_fly import CobarFly
 from flygym import Camera, SingleFlySimulation
 from flygym.arena import FlatTerrain
 
+
 def run_simulation(
     submission_dir,
     level,
     seed,
     debug,
+    max_steps,
     output_dir="outputs",
+    progress=True,
 ):
     sys.path.append(str(submission_dir.parent))
     module = importlib.import_module(submission_dir.name)
@@ -55,11 +58,14 @@ def run_simulation(
     obs_hist = []
     info_hist = []
 
-    for i in trange(10000):
+    if progress:
+        step_range = trange(max_steps)
+    else:
+        step_range = range(max_steps)
+
+    for i in step_range:
         # Get observations
-        obs, reward, terminated, truncated, info = sim.step(
-            controller.get_actions(obs)
-        )
+        obs, reward, terminated, truncated, info = sim.step(controller.get_actions(obs))
         sim.render()
         if controller.done_level(obs):
             # finish the path integration level
@@ -79,6 +85,7 @@ def run_simulation(
     save_path = Path(output_dir) / f"level{level}_seed{seed}.mp4"
     save_path.parent.mkdir(parents=True, exist_ok=True)
     cam.save_video(save_path, stabilization_time=0)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the fly simulation.")
@@ -100,6 +107,12 @@ if __name__ == "__main__":
         default=0,
     )
     parser.add_argument(
+        "--max_steps",
+        type=int,
+        help="Maximum number of steps to run the simulation.",
+        default=10000,
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="Enable debug mode for the simulation.",
@@ -111,6 +124,12 @@ if __name__ == "__main__":
         help="Directory to save the simulation outputs (default: 'outputs').",
         default="outputs",
     )
+    parser.add_argument(
+        "--progress",
+        action="store_true",
+        help="Show progress bar during simulation (default: True).",
+        default=True,
+    )
     args = parser.parse_args()
 
     run_simulation(
@@ -119,4 +138,5 @@ if __name__ == "__main__":
         seed=args.seed,
         debug=args.debug,
         output_dir=args.output_dir,
+        progress=args.progress,
     )
