@@ -444,11 +444,8 @@ class LoomingBallArena(OdorTargetOnlyArena):
         ])
         return start_pos, end_pos, interception_pos, start_angle
 
-    def step(self, dt, physics):
-        """Main loop: updates ball state, triggers looming events, and moves the ball."""
-
-        OdorTargetOnlyArena.step(self, dt, physics)
-
+    def step_ball(self, dt, physics):
+        """Advance the ball along its trajectory."""
         # Update fly velocity buffer
         fly_vel = physics.bind(self.fly._body_sensors[1]).sensordata[:2].copy()
         self.fly_velocities[self.fly_velocities_idx % self.vel_buffer_size] = fly_vel
@@ -478,6 +475,12 @@ class LoomingBallArena(OdorTargetOnlyArena):
             self._advance_ball(physics)
         else:
             self.move_ball(physics, 0, 0, self.ball_rest_height)
+
+    def step(self, dt, physics):
+        """Main loop: updates ball state, triggers looming events, and moves the ball."""
+
+        OdorTargetOnlyArena.step(self, dt, physics)
+        self.step_ball(dt, physics)
 
     def _advance_ball(self, physics):
         """Advance the ball along its trajectory."""
@@ -633,6 +636,16 @@ class FoodToNestArena(HierarchicalArena):
 
         self.pillar_height = pillar_height
 
+    def pre_visual_render_hook(self, physics):
+        for geom, rgba in zip(self._odor_marker_geoms, self.marker_colors):
+            physics.bind(geom).rgba = np.array([*rgba[:3], 0])
+        physics.bind(self.nest_geom).rgba[3] = 0
+
+    def post_visual_render_hook(self, physics):
+        for geom, rgba in zip(self._odor_marker_geoms, self.marker_colors):
+            physics.bind(geom).rgba = np.array([*rgba[:3], 1])
+        physics.bind(self.nest_geom).rgba[3] = 1
+
     def setup_return_mode(self, physics):
         physics.bind(self.nest_geom).rgba[3] = 1
         for geom in self._odor_marker_geoms:
@@ -640,7 +653,6 @@ class FoodToNestArena(HierarchicalArena):
 
         for body in self.obstacle_bodies:
             physics.bind(body).mocap_pos[2] = -self.pillar_height
-
 
     def setup_exploration_mode(self, physics):
         physics.bind(self.nest_geom).rgba[3] = 0
@@ -660,8 +672,8 @@ class FoodToNestArena(HierarchicalArena):
         if self.state == "exploration":
             if np.linalg.norm(self.target_position - fly_pos) < self.to_target_distance:
                 self.state = "returning"
-                self.setup_exploration_mode(physics)
-                LoomingBallArena.step(self, dt, physics)
+                self.setup_return_mode(physics)
+                LoomingBallArena.step_ball(self, dt, physics)
 
         if self.state == "returning":
             if np.linalg.norm(self.nest_position - fly_pos) < self.to_target_distance:

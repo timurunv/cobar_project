@@ -1,7 +1,7 @@
 import argparse
 import cv2
 import tqdm
-from cobar_miniproject.arenas import level_arenas
+from cobar_miniproject import levels
 from cobar_miniproject.keyboard_controller import KeyBoardController
 from cobar_miniproject.cobar_fly import CobarFly
 from cobar_miniproject.vision import (
@@ -36,16 +36,16 @@ if __name__ == "__main__":
     # you can pass in parameters to enable different senses here
     # head stabilisation
     # camera could be optional - just play in fly mode
-    fly = CobarFly(debug=True, enable_vision=False)
+    fly = CobarFly(debug=True, enable_vision=True)
 
     if level <= -1:
         level_arena = FlatTerrain()
     elif level <= 1:
         # levels 0 and 1 don't need the timestep
-        level_arena = level_arenas[level](fly=fly)
+        level_arena = levels[level](fly=fly)
     else:
         # levels 2-4 need the timestep
-        level_arena = level_arenas[level](fly=fly, timestep=timestep)
+        level_arena = levels[level](fly=fly, timestep=timestep)
 
     cam = YawOnlyCamera(
         attachment_point=fly.model.worldbody,
