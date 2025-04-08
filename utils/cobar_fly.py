@@ -1,8 +1,8 @@
-import flygym
+from flygym import Fly, Simulation
 import numpy as np
 
 
-class CobarFly(flygym.Fly):
+class CobarFly(Fly):
     def __init__(self, debug=False, **kwargs):
         super().__init__(
             contact_sensor_placements=[
@@ -73,7 +73,7 @@ class CobarFly(flygym.Fly):
         )
         self.model.visual.map.zfar = 10  # type: ignore
 
-    def get_observation(self, sim: flygym.Simulation):
+    def get_observation(self, sim: Simulation):
         observation = super().get_observation(sim)
 
         # if we're running the fly in debug mode (for development) it will return all raw observations
@@ -112,7 +112,7 @@ class CobarFly(flygym.Fly):
 
         return observation_to_return
 
-    def post_step(self, sim: flygym.Simulation):
+    def post_step(self, sim: Simulation):
         obs = self.get_observation(sim)
         reward = self.get_reward()
         terminated = self.is_terminated()
