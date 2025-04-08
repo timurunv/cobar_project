@@ -36,12 +36,12 @@ if __name__ == "__main__":
     # you can pass in parameters to enable different senses here
     # head stabilisation
     # camera could be optional - just play in fly mode
-    fly = CobarFly(debug=True, enable_vision=True)
+    fly = CobarFly(debug=True, enable_vision=False)
 
     if level <= -1:
         level_arena = FlatTerrain()
     elif level <= 1:
-        level_arena = levels[level](fly=fly)
+        level_arena = level_arenas[level](fly=fly)
     else:
         level_arena = FlatTerrain()
 
