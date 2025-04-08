@@ -58,16 +58,20 @@ class PillarsLoomingArena(ObstacleOdorArena):
             pillar_positions = np.array([])
 
         super().__init__(
-            terrain=FlatTerrain(ground_alpha=0),
+            terrain=FlatTerrain(ground_alpha=1),
             obstacle_positions=pillar_positions,
             obstacle_radius=pillar_radius,
             obstacle_height=pillar_height,
-            odor_source=np.array([[*target_position, 1]]),
+            odor_source=np.array([[*target_position, 2]]),
             peak_odor_intensity=np.array([[1, 0]]),
             marker_colors=np.array([target_marker_color]),
             marker_size=target_marker_size,
             **kwargs,
         )
+
+        # set the floor white with full alpha
+        self.root_element.find_all("texture")[0].rgb1 = (1, 1, 1)
+        self.root_element.find_all("texture")[0].rgb2 = (1, 1, 1)
 
         self._setup_probabilities(looming_lambda)
         self._setup_trajectory_params(
