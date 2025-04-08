@@ -21,7 +21,7 @@ class OdorArena(ObstacleOdorArena):
         target_position = get_random_pos(
             distance_range=target_distance_range,
             angle_range=target_angle_range,
-            rng=rng,
+            random_state=rng,
         )
 
         super().__init__(

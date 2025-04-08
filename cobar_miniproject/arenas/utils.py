@@ -5,7 +5,7 @@ import cv2
 def get_random_pos(
     distance_range: tuple[float, float],
     angle_range: tuple[float, float],
-    rng: np.random.Generator,
+    random_state: np.random.Generator,
 ):
     """Generate a random target position.
 
@@ -22,7 +22,7 @@ def get_random_pos(
     np.ndarray
         The target position in the form of [x, y].
     """
-    p = rng.uniform(*distance_range) * np.exp(1j * rng.uniform(*angle_range))
+    p = random_state.uniform(*distance_range) * np.exp(1j * random_state.uniform(*angle_range))
     return np.array([p.real, p.imag], float)
 
 

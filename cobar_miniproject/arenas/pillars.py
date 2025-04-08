@@ -69,12 +69,13 @@ class PillarsArena(ObstacleOdorArena):
         seed=None,
         **kwargs,
     ):
-        rng = np.random.default_rng(seed)
+        self.seed = seed
+        self.random_state = np.random.RandomState(seed)
 
         target_position = get_random_pos(
             distance_range=target_distance_range,
             angle_range=target_angle_range,
-            rng=rng,
+            random_state=self.random_state,
         )
 
         pillar_positions = self._get_pillar_positions(
@@ -83,7 +84,7 @@ class PillarsArena(ObstacleOdorArena):
             pillar_radius=pillar_radius,
             pillars_minimum_separation=pillars_minimum_separation,
             fly_clearance_radius=fly_clearance_radius,
-            rng=rng,
+            random_state=self.random_state,
         )
 
         super().__init__(
@@ -98,14 +99,13 @@ class PillarsArena(ObstacleOdorArena):
             **kwargs,
         )
 
-    @staticmethod
     def _get_pillar_positions(
         target_position: tuple[float, float],
         target_clearance_radius: float,
         pillar_radius: float,
         pillars_minimum_separation: float,
         fly_clearance_radius: float,
-        rng: np.random.Generator,
+        random_state: np.random.Generator,
         res: float = 0.05,
     ):
         """Generate random pillar positions.
@@ -158,7 +158,7 @@ class PillarsArena(ObstacleOdorArena):
         while True:
             argwhere = np.argwhere(im1 & im2)
             try:
-                p = argwhere[rng.choice(len(argwhere)), ::-1] * res + (xmin, ymin)
+                p = argwhere[random_state.choice(len(argwhere)), ::-1] * res + (xmin, ymin)
             except ValueError:
                 break
             pillars_xy.append(p)
@@ -166,3 +166,8 @@ class PillarsArena(ObstacleOdorArena):
             circ(im2, p, pillar_clearance_radius, 1, xmin, ymin, res, outer=True)
 
         return np.array(pillars_xy)
+
+    def reset(self, physics, seed=None):
+        if seed is not None:
+            self.seed = seed
+        self.random_state = np.random.RandomState(self.seed)
