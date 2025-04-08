@@ -41,9 +41,11 @@ if __name__ == "__main__":
     if level <= -1:
         level_arena = FlatTerrain()
     elif level <= 1:
+        # levels 0 and 1 don't need the timestep
         level_arena = level_arenas[level](fly=fly)
     else:
-        level_arena = FlatTerrain()
+        # levels 2-4 need the timestep
+        level_arena = level_arenas[level](fly=fly, timestep=timestep)
 
     cam = YawOnlyCamera(
         attachment_point=fly.model.worldbody,
