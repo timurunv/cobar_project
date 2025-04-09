@@ -8,7 +8,7 @@ from cobar_miniproject import levels
 from cobar_miniproject.cobar_fly import CobarFly
 from flygym import Camera, SingleFlySimulation
 from flygym.arena import FlatTerrain
-
+from tqdm import tqdm
 
 def run_simulation(
     submission_dir,
@@ -27,7 +27,7 @@ def run_simulation(
     fly = CobarFly(
         debug=debug,
         enable_vision=True,
-        render_raw_vision=True,
+        render_raw_vision=True, # can be changed to False for faster simulation
     )
 
     if level <= -1:
@@ -74,9 +74,9 @@ def run_simulation(
             # finish the path integration level
             break
         
-        del obs['raw_vision']
-        #obs_hist.append(obs)
-        #info_hist.append(info)
+        # del obs['raw_vision']
+        obs_hist.append(obs)
+        info_hist.append(info)
 
         if hasattr(controller, "quit") and controller.quit:
             print("Simulation terminated by user.")
@@ -85,8 +85,9 @@ def run_simulation(
             print("Target reached. Simulation terminated.")
             break
 
+    # TODO - maybe alternative where we save the obs and info and just do a plot of trajectories or something like that
     # Save video
-    save_path = Path(output_dir) / f"level{level}_seed{seed}.mp4"
+    save_path = Path(output_dir) / f"level{level}_seed{seed}_iter{max_steps}.mp4"
     save_path.parent.mkdir(parents=True, exist_ok=True)
     cam.save_video(save_path, stabilization_time=0)
 
@@ -94,7 +95,7 @@ def run_simulation(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the fly simulation.")
     parser.add_argument(
-        "submission_dir",
+        "--submission_dir",
         type=Path,
         help="Path to the submission directory containing the controller module.",
         default=str("./submission/"),

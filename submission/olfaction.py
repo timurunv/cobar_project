@@ -1,6 +1,6 @@
 import numpy as np
 
-def compute_olfaction_control_signal(obs, attractive_gain = -500, aversive_gain = 80):
+def compute_olfaction_turn_bias(obs, attractive_gain = -500, aversive_gain = 80):
     
     attractive_intensities = np.average(obs["odor_intensity"][0, :].reshape(2, 2), axis=0, weights=[9, 1])
     aversive_intensities = np.average(obs["odor_intensity"][1, :].reshape(2, 2), axis=0, weights=[10, 0])

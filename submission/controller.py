@@ -1,17 +1,16 @@
 import numpy as np
 from cobar_miniproject.base_controller import BaseController
 from .utils import get_cpg, step_cpg
-from .olfaction import compute_olfaction_control_signal
-
-# python run_simulation.py ./submission/ --level 0 --progress
-#python3 run_simulation.py ./submission/ --level 0 --progress
+from .olfaction import compute_olfaction_turn_bias
+#python run_simulation.py --level 0 --max-steps 2000
+#python3 run_simulation.py --level 0 --max-steps 2000
 
 class Controller(BaseController):
     def __init__(
-        self,
+        self,  
         timestep=1e-4,
         seed=0,
-        action = np.ones((2,)),
+        weight_olfaction=1.0, # ideas : weight dependent on intensity (love blindness), internal states
     ):
         from flygym.examples.locomotion import PreprogrammedSteps
 
@@ -19,13 +18,14 @@ class Controller(BaseController):
         self.quit = False
         self.cpg_network = get_cpg(timestep=timestep, seed=seed)
         self.preprogrammed_steps = PreprogrammedSteps()
-        self.action = action
+        self.action = np.ones((2,))
+        self.weight_olfaction = weight_olfaction
 
     def get_actions(self, obs):
+        self.action = np.ones((2,)) # at each loop ? or cumulative so it turns faster ? maybe its the same as the weight idea
         
         # olfaction
-        weight_olfaction = 10.0 # ideas : weight dependent on intensity (love blindness), internal states
-        self.action += weight_olfaction * compute_olfaction_control_signal(obs)
+        self.action += compute_olfaction_turn_bias(obs) # it will subtract from either side
 
         joint_angles, adhesion = step_cpg(
             cpg_network=self.cpg_network,
