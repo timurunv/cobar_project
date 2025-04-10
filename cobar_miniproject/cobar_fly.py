@@ -1,7 +1,25 @@
 import collections
 from flygym import Fly, Simulation
 import numpy as np
-from scipy.spatial.transform import Rotation as R
+# I tried to JIT this with numba but it was slower
+def quat_to_zyx(q0, q1, q2, q3):
+    """
+    Optimised code for converting a quaternion to ZYX angles.
+
+    `quat_to_zyx(*quat)` is equivalent to `dm_control.utils.transformations.quat_to_euler(quat, ordering="ZYX")`
+    """
+    q22 = q2 * q2
+    rmat_0_0 = 1 / 2 - q22 - q3 * q3
+    rmat_1_0 = q1 * q2 + q3 * q0
+    rmat_2_0 = 2 * (q1 * q3 - q2 * q0)
+    rmat_2_1 = q2 * q3 + q1 * q0
+    rmat_2_2 = 1 / 2 - q1 * q1 - q22
+
+    x = np.arctan2(rmat_2_1, rmat_2_2)
+    y = -np.arcsin(rmat_2_0)
+    z = np.arctan2(rmat_1_0, rmat_0_0)
+
+    return np.array([z, y, x])
 
 class CobarFly(Fly):
     def __init__(
@@ -180,20 +198,15 @@ class CobarFly(Fly):
             )
 
         # fly position and orientation
-        cart_pos = physics.bind(self._body_sensors[0]).sensordata
-        cart_vel = physics.bind(self._body_sensors[1]).sensordata
-
+        fly_pos = physics.bind(self._body_sensors[0]).sensordata
+        fly_vel = physics.bind(self._body_sensors[1]).sensordata
         quat = physics.bind(self._body_sensors[2]).sensordata
-        ang_pos = R.from_quat(quat[[1, 2, 3, 0]]).as_euler(
-            "ZYX"
-        )  # explicitly use extrinsic ZYX
-        # # ang_pos[0] *= -1  # flip roll??
-        # ang_vel = physics.bind(self._body_sensors[3]).sensordata
-        # fly_pos = np.array([cart_pos, cart_vel, ang_pos, ang_vel])
+
+        ang_pos = quat_to_zyx(*quat)
 
         # needed for the camera to track the fly
         self.last_obs["rot"] = ang_pos
-        self.last_obs["pos"] = cart_pos
+        self.last_obs["pos"] = fly_pos
 
         # contact forces from crf_ext (first three components are rotational)
         contact_forces = physics.named.data.cfrc_ext[self.contact_sensor_placements][
@@ -241,29 +254,29 @@ class CobarFly(Fly):
             )
 
         # end effector position
-        ee_pos = physics.bind(self._end_effector_sensors).sensordata.copy()
+        ee_pos = physics.bind(self._end_effector_sensors).sensordata
         ee_pos = ee_pos.reshape((self.n_legs, 3))
 
-        orientation_vec = physics.bind(self._body_sensors[4]).sensordata.copy()
+        orientation_vec = physics.bind(self._body_sensors[4]).sensordata
+        fly_angle = np.arctan2(*orientation_vec[1::-1])
+        fly_pos_xy = fly_pos[:2].reshape(1, 2)
 
         end_effector_positions_relative = CobarFly.absolute_to_relative_pos(
             ee_pos[:, :2],
-            cart_pos[:2],
-            orientation_vec,
+            fly_pos_xy,
+            fly_angle,
         )
         velocities_relative = CobarFly.absolute_to_relative_pos(
-            cart_vel[:2],
-            cart_pos[:2],
-            orientation_vec,
+            fly_vel[:2],
+            fly_pos_xy,
+            fly_angle,
         )
 
         obs = {
             "joints": joint_obs.astype(np.float32),
             "end_effectors": end_effector_positions_relative.astype(np.float32),
             "contact_forces": contact_forces.astype(np.float32),
-            "heading": np.arctan2(orientation_vec[1], orientation_vec[0]).astype(
-                np.float32
-            ),
+            "heading": fly_angle.astype(np.float32),
             "velocity": velocities_relative.astype(np.float32),
         }
 
@@ -328,19 +341,27 @@ class CobarFly(Fly):
 
     @staticmethod
     def absolute_to_relative_pos(
-        pos: np.ndarray, base_pos: np.ndarray, heading: np.ndarray
+        pos: np.ndarray, base_pos: np.ndarray, heading_angle: float
     ) -> np.ndarray:
         """
         This function converts an absolute position to a relative position
         with respect to the base position and heading of the fly.
 
         It is used to obtain the fly-centric end effector (leg tip) positions.
+
+        Args:
+            pos (np.ndarray): Nx2 array of end effector positions in global coordinates.
+            base_pos (np.ndarray): 1x2 array of the fly's x-y position.
+            heading_angle (float): heading angle of the fly
+
+        Returns:
+            np.ndarray: Nx2 array of end effector positions in fly-centric coordinates
         """
-        rel_pos = pos - base_pos.reshape(1, -1)
-        heading = heading / np.linalg.norm(heading)
-        angle = np.arctan2(heading[1], heading[0])
+        rel_pos = pos - base_pos
         rot_matrix = np.array(
-            [[np.cos(-angle), -np.sin(-angle)], [np.sin(-angle), np.cos(-angle)]]
+            [
+                [np.cos(-heading_angle), np.sin(-heading_angle)],
+                [-np.sin(-heading_angle), np.cos(-heading_angle)],
+            ]
         )
-        pos_rotated = np.dot(rel_pos, rot_matrix.T)
-        return pos_rotated
+        return rel_pos @ rot_matrix
