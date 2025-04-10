@@ -1,6 +1,7 @@
+import collections
 from flygym import Fly, Simulation
 import numpy as np
-
+from scipy.spatial.transform import Rotation as R
 
 class CobarFly(Fly):
     def __init__(
@@ -35,6 +36,7 @@ class CobarFly(Fly):
             enable_olfaction=True,
             enable_vision=enable_vision,
             render_raw_vision=render_raw_vision,
+            vision_refresh_rate=100,
             **kwargs,
         )
         self.debug = debug
@@ -158,43 +160,149 @@ class CobarFly(Fly):
         ]
 
     def get_observation(self, sim: Simulation):
-        observation = super().get_observation(sim)
-
         # if we're running the fly in debug mode (for development) it will return all raw observations
         # otherwise, it will return only a reduced observation space with egocentric observations
         if self.debug:
-            return observation
+            return super().get_observation(sim)
+
+        physics = sim.physics
+        actuated_joint_sensordata = physics.bind(
+            self._actuated_joint_sensors
+        ).sensordata
+
+        joint_obs = np.array(actuated_joint_sensordata).reshape((3, -1), order="F")
+        joint_obs[2, :] *= 1e-9  # convert to N
+        joint_obs = joint_obs[:, self._monitored_joint_order]
+
+        if len(self.monitored_joints) > len(self.actuated_joints):
+            raise NotImplementedError(
+                "Cobar fly shouldn't have any non actuated joints"
+            )
+
+        # fly position and orientation
+        cart_pos = physics.bind(self._body_sensors[0]).sensordata
+        cart_vel = physics.bind(self._body_sensors[1]).sensordata
+
+        quat = physics.bind(self._body_sensors[2]).sensordata
+        ang_pos = R.from_quat(quat[[1, 2, 3, 0]]).as_euler(
+            "ZYX"
+        )  # explicitly use extrinsic ZYX
+        # # ang_pos[0] *= -1  # flip roll??
+        # ang_vel = physics.bind(self._body_sensors[3]).sensordata
+        # fly_pos = np.array([cart_pos, cart_vel, ang_pos, ang_vel])
+
+        # needed for the camera to track the fly
+        self.last_obs["rot"] = ang_pos
+        self.last_obs["pos"] = cart_pos
+
+        # contact forces from crf_ext (first three components are rotational)
+        contact_forces = physics.named.data.cfrc_ext[self.contact_sensor_placements][
+            :, 3:
+        ].copy()
+        if self.enable_adhesion:
+            # Adhesion adds force to the contact. Let's compute this force
+            # and remove it from the contact forces
+            contactid_normal = collections.defaultdict(list)
+
+            geoms_we_care_about_to_sensor_ids = {
+                geom: sensor_id
+                for geom, sensor_id, last_adhesion in zip(
+                    self._adhesion_actuator_geom_id,
+                    self._adhesion_bodies_with_contact_sensors,
+                    self._last_adhesion,
+                )
+                if last_adhesion
+            }
+            geoms_we_care_about = set(geoms_we_care_about_to_sensor_ids.keys())
+
+            for contact in physics.data.contact:
+                if contact.exclude == 0:
+                    if contact.geom1 in geoms_we_care_about:
+                        contactid_normal[
+                            geoms_we_care_about_to_sensor_ids[contact.geom1]
+                        ].append(contact.frame[:3])
+                    if contact.geom2 in geoms_we_care_about:
+                        contactid_normal[
+                            geoms_we_care_about_to_sensor_ids[contact.geom2]
+                        ].append(contact.frame[:3])
+
+            for contact_sensor_id, normals in contactid_normal.items():
+                # sum() / len() is the same as np.mean(normals, axis=0) but faster
+                contact_forces[contact_sensor_id, :] -= (
+                    self.adhesion_force * sum(normals) / len(normals)
+                )
+
+            # say which adhesions sensors are in contact with something
+            self._active_adhesion = np.array(
+                [
+                    sensor_id in contactid_normal
+                    for sensor_id in self._adhesion_bodies_with_contact_sensors
+                ]
+            )
+
+        # end effector position
+        ee_pos = physics.bind(self._end_effector_sensors).sensordata.copy()
+        ee_pos = ee_pos.reshape((self.n_legs, 3))
+
+        orientation_vec = physics.bind(self._body_sensors[4]).sensordata.copy()
 
         end_effector_positions_relative = CobarFly.absolute_to_relative_pos(
-            observation["end_effectors"][:, :2],
-            observation["fly"][0, :2],
-            observation["fly_orientation"],
+            ee_pos[:, :2],
+            cart_pos[:2],
+            orientation_vec,
         )
         velocities_relative = CobarFly.absolute_to_relative_pos(
-            observation["fly"][1, :2],
-            observation["fly"][0, :2],
-            observation["fly_orientation"],
+            cart_vel[:2],
+            cart_pos[:2],
+            orientation_vec,
         )
 
-        observation_to_return = {
-            "joints": observation["joints"],
-            "end_effectors": end_effector_positions_relative,
-            "contact_forces": observation["contact_forces"],
-            "heading": np.arctan2(
-                observation["fly_orientation"][1], observation["fly_orientation"][0]
+        obs = {
+            "joints": joint_obs.astype(np.float32),
+            "end_effectors": end_effector_positions_relative.astype(np.float32),
+            "contact_forces": contact_forces.astype(np.float32),
+            "heading": np.arctan2(orientation_vec[1], orientation_vec[0]).astype(
+                np.float32
             ),
-            "velocity": velocities_relative,
+            "velocity": velocities_relative.astype(np.float32),
         }
 
         if self.enable_olfaction:
-            observation_to_return["odor_intensity"] = observation["odor_intensity"]
+            antennae_pos = physics.bind(self._antennae_sensors).sensordata
+            odor_intensity = sim.arena.get_olfaction(antennae_pos.reshape(4, 3))
+            obs["odor_intensity"] = odor_intensity.astype(np.float32)
 
         if self.enable_vision:
-            observation_to_return["vision"] = observation["vision"]
+            self._update_vision(sim)
+            obs["vision"] = self._curr_visual_input
             if self.render_raw_vision:
-                observation_to_return["raw_vision"] = self.get_info()["raw_vision"]
+                obs["raw_vision"] = self.get_info()["raw_vision"]
 
-        return observation_to_return
+        return obs
+
+    def pre_step(self, action, sim: "Simulation"):
+        physics = sim.physics
+        joint_action = action["joints"]
+
+        # estimate necessary neck actuation signals for head stabilization
+        if self.head_stabilization_model == "thorax":
+            # get roll and pitch from thorax rotation matrix
+            rmat_0_2, rmat_1_2, rmat_2_2 = physics.bind(self.thorax).xmat[2::3]
+            pitch = np.arcsin(-rmat_0_2)
+            roll = -np.arctan2(-rmat_1_2, rmat_2_2)
+            neck_actuation = np.array([roll, pitch])
+
+            joint_action = np.concatenate((joint_action, neck_actuation))
+            self._last_neck_actuation = neck_actuation
+            physics.bind(self.actuators + self.neck_actuators).ctrl = joint_action
+        else:
+            raise NotImplementedError(
+                "Cobar fly only supports thorax head stabilization."
+            )
+
+        if self.enable_adhesion:
+            physics.bind(self.adhesion_actuators).ctrl = action["adhesion"]
+            self._last_adhesion = action["adhesion"]
 
     def post_step(self, sim: Simulation):
         obs = self.get_observation(sim)
@@ -209,8 +317,7 @@ class CobarFly(Fly):
             info["vision_updated"] = vision_updated_this_step
 
         # Fly has flipped if the z component of the "up" cardinal vector is negative
-        cardinal_vector_z = sim.physics.bind(self._body_sensors[6]).sensordata.copy()
-        info["flip"] = cardinal_vector_z[2] < 0
+        info["flip"] = sim.physics.bind(self._body_sensors[6]).sensordata[2] < 0
 
         if self.head_stabilization_model is not None:
             # this is tracked to decide neck actuation for the next step
@@ -228,7 +335,6 @@ class CobarFly(Fly):
         with respect to the base position and heading of the fly.
 
         It is used to obtain the fly-centric end effector (leg tip) positions.
-
         """
         rel_pos = pos - base_pos.reshape(1, -1)
         heading = heading / np.linalg.norm(heading)
