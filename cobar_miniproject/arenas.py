@@ -196,7 +196,7 @@ class OdorTargetOnlyArena(ObstacleOdorArena):
         target_angle_range=(-np.pi, np.pi),
         target_marker_size=0.3,
         target_marker_color=(1, 0.5, 14 / 255, 1),
-        to_target_distance=2.0,
+        to_target_distance=3.0,
         seed=None,
         **kwargs,
     ):
@@ -306,7 +306,7 @@ class ScatteredPillarsArena(ObstacleOdorArena):
         pillars_minimum_separation=6,
         fly_clearance_radius=4,
         seed=None,
-        to_target_distance=2.0,
+        to_target_distance=3.0,
         **kwargs,
     ):
         self.fly = fly
@@ -443,7 +443,7 @@ class LoomingBallArena(OdorTargetOnlyArena):
         target_angle_range=(-np.pi, np.pi),
         target_marker_size=0.3,
         target_marker_color=(1, 0.5, 14 / 255, 1),
-        to_target_distance=2.0,
+        to_target_distance=3.0,
         ball_radius=1.0,
         ball_approach_vel=50,
         ball_approach_start_radius=20,
@@ -705,7 +705,7 @@ class HierarchicalArena(ScatteredPillarsArena, LoomingBallArena):
         pillars_minimum_separation=6,
         fly_clearance_radius=4,
         seed=None,
-        to_target_distance=2.0,
+        to_target_distance=3.0,
         ball_radius=1.0,
         ball_approach_vel=50,
         ball_approach_start_radius=20,
@@ -760,7 +760,7 @@ class FoodToNestArena(HierarchicalArena):
         pillars_minimum_separation=6,
         fly_clearance_radius=4,
         seed=None,
-        to_target_distance=2.0,
+        to_target_distance=3.0,
         ball_radius=1.0,
         ball_approach_vel=50,
         ball_approach_start_radius=20,
@@ -851,7 +851,3 @@ class FoodToNestArena(HierarchicalArena):
             if np.linalg.norm(self.target_position - fly_pos) < self.to_target_distance:
                 self.state = "returning"
                 self.setup_return_mode(physics)
-
-        if self.state == "returning":
-            if np.linalg.norm(self.nest_position - fly_pos) < self.to_target_distance:
-                self.quit = True
