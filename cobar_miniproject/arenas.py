@@ -521,7 +521,7 @@ class LoomingBallArena(OdorTargetOnlyArena):
     def _setup_ball_heights(self):
         """Calculate ball positions for visible and resting states."""
         self.ball_rest_height = 10.0
-        self.ball_act_height = self.ball_radius + self._get_max_floor_height()
+        self.ball_act_height = self.ball_radius/4*3 + self._get_max_floor_height() 
 
     def _setup_velocity_buffer(self):
         """Setup a fixed-length FIFO buffer for fly velocity estimation."""
