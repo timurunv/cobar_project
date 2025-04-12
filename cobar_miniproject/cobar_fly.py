@@ -299,10 +299,10 @@ class CobarFly(Fly):
 
         # estimate necessary neck actuation signals for head stabilization
         if self.head_stabilization_model == "thorax":
-            # get roll and pitch from thorax rotation matrix
-            rmat_0_2, rmat_1_2, rmat_2_2 = physics.bind(self.thorax).xmat[2::3]
-            pitch = np.arcsin(-rmat_0_2)
-            roll = -np.arctan2(-rmat_1_2, rmat_2_2)
+            # get roll and pitch from thorax rotation matrix (it seems to be transposed?)
+            rmat_0_2, rmat_1_2, rmat_2_2 = physics.bind(self.thorax).xmat[6:]
+            pitch = np.arcsin(rmat_0_2)
+            roll = -np.arctan2(rmat_1_2, rmat_2_2)
             neck_actuation = np.array([roll, pitch])
 
             joint_action = np.concatenate((joint_action, neck_actuation))
