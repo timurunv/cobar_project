@@ -23,7 +23,7 @@ def quat_to_zyx(q0, q1, q2, q3):
 
 class CobarFly(Fly):
     def __init__(
-        self, debug=False, enable_vision=True, render_raw_vision=False, **kwargs
+        self, debug=False, enable_vision=True, render_raw_vision=True, **kwargs
     ):
         """Specific Fly instance for use in the COBAR project.
         The physics have been to improve simulation speed.
