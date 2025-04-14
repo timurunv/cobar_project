@@ -461,6 +461,7 @@ class LoomingBallArena(OdorTargetOnlyArena):
             target_marker_size=target_marker_size,
             target_marker_color=target_marker_color,
             to_target_distance=to_target_distance,
+            seed=seed,
             **kwargs,
         )
 
