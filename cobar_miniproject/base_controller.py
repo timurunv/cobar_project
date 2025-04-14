@@ -81,7 +81,7 @@ class BaseController(ABC):
     @abstractmethod
     def done_level(self, obs) -> bool:
         """
-        For level 5 (path integration) - if the fly has returned back home
+        For level 4 (path integration) - if the fly has returned back home
         after collecting the odour, return `True` here to stop the simulation.
         """
         pass
