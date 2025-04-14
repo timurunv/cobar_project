@@ -4,6 +4,19 @@ from typing import TypedDict
 
 
 class Observation(TypedDict, total=False):
+    """
+    The observations from the environment. Namely:
+    - `"joints"` - the angle of each of the fly's joints
+    - `"end_effectors"` - the end effector positions in egocentric coordinates
+    - `"contact_forces"` - the contact forces
+    - `"heading"` - the fly's absolute heading
+    - `"velocity"` - the fly's velocity along x, y, z
+    - `"odor_intensity"` - the odour intensity in each antenna
+    - `"vision"` - fly-like vision image
+    - `"raw_vision"` - raw vision image
+    - `"vision_updated"` - whether the fly's vision was updated in the last simulation step
+    - `"reached_odour"` - whether the fly has reached the odour source yet (used for the final level)
+    """
     joints: np.ndarray
     end_effectors: np.ndarray
     contact_forces: np.ndarray
@@ -21,7 +34,6 @@ class Action(TypedDict):
     The fly's joint angles under the "joints" key and
     the adhesion state for each leg under the "adhesion" key.
     """
-
     joints: np.ndarray
     adhesion: np.ndarray
 
@@ -39,21 +51,23 @@ class BaseController(ABC):
 
         Parameters
         ----------
-        obs: dict
-            The observations from the environment. Namely
-            - The angle of each of the fly's joints
-            - The end effector positions in egocentric coordinates
-            - The contact forces
-            - The fly's absolute heading
-            - The fly's velocity along x, y, z
-            - The vision both raw and fly-like
-            - The odour intensity in each antenna
-            - Whether the fly's vision was updated in the last simulation step
-            - Whether the fly has reached the odour source yet (used for the final level)
+        obs: Observation
+            The observations from the environment. Namely:
+            - `"joints"` - the angle of each of the fly's joints
+            - `"end_effectors"` - the end effector positions in egocentric coordinates
+            - `"contact_forces"` - the contact forces
+            - `"heading"` - the fly's absolute heading
+            - `"velocity"` - the fly's velocity along x, y, z
+            - `"odor_intensity"` - the odour intensity in each antenna
+            - `"vision"` - fly-like vision image
+            - `"raw_vision"` - raw vision image
+            - `"vision_updated"` - whether the fly's vision was updated in the last simulation step
+            - `"reached_odour"` - whether the fly has reached the odour source yet (used for the final level)
+
 
         Returns
         -------
-        action: dict
+        action: Action
             The fly's joint angles under the "joints" key
             The adhesion state under the "adhesion" key
         """
