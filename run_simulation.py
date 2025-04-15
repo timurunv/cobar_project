@@ -6,9 +6,11 @@ from tqdm import trange
 from flygym import Camera
 from cobar_miniproject import levels
 from cobar_miniproject.cobar_fly import CobarFly
+from cobar_miniproject.vision import get_fly_vision
 from flygym import Camera, SingleFlySimulation
 from flygym.arena import FlatTerrain
 from tqdm import tqdm
+from matplotlib import pyplot as plt
 
 def run_simulation(
     submission_dir,
@@ -75,8 +77,8 @@ def run_simulation(
             break
         
         # del obs['raw_vision']
-        obs_hist.append(obs)
-        info_hist.append(info)
+        # obs_hist.append(obs)
+        # info_hist.append(info)
 
         if hasattr(controller, "quit") and controller.quit:
             print("Simulation terminated by user.")
