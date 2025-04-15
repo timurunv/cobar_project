@@ -59,6 +59,12 @@ class CobarFly(Fly):
         )
         self.debug = debug
 
+        for geom in self.model.find_all("geom"):
+            if geom.name[2:] in {"Coxa", "Femur", "Tibia", "Tarsus1", "Tarsus2", "Tarsus3", "Tarsus4", "Tarsus5"}:
+                geom.contype = "8"
+            elif geom.name in {"Head", "Thorax", "A1A2", "A3", "A4", "A5"}:
+                geom.contype = "9"
+
         # add these joints to enable using head stabilisation models
         fly_head_body = self.model.worldbody.find("body", "Head")  # type: ignore
         fly_head_body.add(

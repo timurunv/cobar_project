@@ -161,6 +161,8 @@ class ObstacleOdorArena(BaseArena):
                 size=(obstacle_radius, obstacle_height / 2),
                 rgba=obstacle_color,
                 material=obstacle_material,
+                contype="0",
+                conaffinity="8",
             )
 
     def get_spawn_position(
