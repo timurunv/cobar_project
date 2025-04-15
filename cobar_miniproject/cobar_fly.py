@@ -23,7 +23,7 @@ def quat_to_zyx(q0, q1, q2, q3):
 
 class CobarFly(Fly):
     def __init__(
-        self, debug=False, enable_vision=True, render_raw_vision=False, **kwargs
+        self, debug=False, enable_vision=True, render_raw_vision=True, **kwargs
     ):
         """Specific Fly instance for use in the COBAR project.
         The physics have been to improve simulation speed.
@@ -342,6 +342,12 @@ class CobarFly(Fly):
             # this is tracked to decide neck actuation for the next step
             self._last_observation = obs
             info["neck_actuation"] = self._last_neck_actuation
+
+        # add some extra fields to the obs so the controller can access them
+        obs["vision_updated"] = info["vision_updated"]
+        obs["reached_odour"] = (
+            getattr(sim.arena, "state", "exploring") == "returning"
+        )  # this is only relevant for the path integration
 
         return obs, reward, terminated, truncated, info
 

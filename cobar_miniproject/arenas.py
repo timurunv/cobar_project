@@ -125,7 +125,13 @@ class ObstacleOdorArena(BaseArena):
                 "body", name=f"odor_source_marker_{i}", pos=pos, mocap=True
             )
             geom = marker_body.add(
-                "geom", type="capsule", size=(marker_size, marker_size), rgba=rgba
+                "geom",
+                name="odor_source_marker_sensor",  # if we add sensor to the name it doesn't get added to the contact pairs: see `init_floor_contacts` in fly
+                type="capsule",
+                size=(marker_size, marker_size),
+                rgba=rgba,
+                contype=0,  # we also need to add these to not have it involved in any collisions
+                conaffinity=0,
             )
             self._odor_marker_geoms.append(geom)
 
