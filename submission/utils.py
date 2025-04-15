@@ -30,8 +30,7 @@ def get_cpg(timestep, seed=0):
 
 
 def step_cpg(cpg_network, preprogrammed_steps, action):
-    action = np.ones(2)
-
+    
     amps = np.repeat(np.abs(action[:, np.newaxis]), 3, axis=1).ravel()
     freqs = np.abs(cpg_network.intrinsic_freqs)
     freqs[:3] *= 1 if action[0] > 0 else -1
