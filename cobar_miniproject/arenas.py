@@ -183,12 +183,32 @@ class ObstacleOdorArena(BaseArena):
         return intensity.sum(axis=0)  # (k, w)
 
     def pre_visual_render_hook(self, physics):
-        for geom, rgba in zip(self._odor_marker_geoms, self.marker_colors):
+        # hide elements that we don't want to see in the fly's vision
+        # but only in the external camera
+        for geom, rgba in zip(
+            self._odor_marker_geoms,
+            self.marker_colors,
+        ):
             physics.bind(geom).rgba = np.array([*rgba[:3], 0])
+        ground = self.terrain_arena.root_element.find(
+            namespace="geom", identifier="ground"
+        )
+        assert ground is not None, "Couldn't find the ground"
+        physics.bind(ground).rgba = np.array([*physics.bind(ground).rgba[:3], 0])
 
     def post_visual_render_hook(self, physics):
-        for geom, rgba in zip(self._odor_marker_geoms, self.marker_colors):
+        # show elements that we don't want to see in the fly's vision
+        # but only in the external camera
+        for geom, rgba in zip(
+            self._odor_marker_geoms,
+            self.marker_colors,
+        ):
             physics.bind(geom).rgba = np.array([*rgba[:3], 1])
+        ground = self.terrain_arena.root_element.find(
+            namespace="geom", identifier="ground"
+        )
+        assert ground is not None, "Couldn't find the ground"
+        physics.bind(ground).rgba = np.array([*physics.bind(ground).rgba[:3], 1])
 
     def _get_max_floor_height(self) -> float:
         return self.terrain_arena._get_max_floor_height()
@@ -228,10 +248,6 @@ class OdorTargetOnlyArena(ObstacleOdorArena):
             marker_size=target_marker_size,
             **kwargs,
         )
-
-        # set the floor white with full alpha
-        self.root_element.find_all("texture")[0].rgb1 = (1, 1, 1)
-        self.root_element.find_all("texture")[0].rgb2 = (1, 1, 1)
 
     def step(self, dt, physics):
         fly_pos = physics.bind(self.fly._body_sensors[0]).sensordata[:2].copy()
@@ -349,10 +365,6 @@ class ScatteredPillarsArena(ObstacleOdorArena):
             marker_size=target_marker_size,
             **kwargs,
         )
-
-        # set the floor white with full alpha
-        self.root_element.find_all("texture")[0].rgb1 = (1, 1, 1)
-        self.root_element.find_all("texture")[0].rgb2 = (1, 1, 1)
 
     @staticmethod
     def _get_pillar_positions(
@@ -818,13 +830,11 @@ class FoodToNestArena(HierarchicalArena):
         self.pillar_height = pillar_height
 
     def pre_visual_render_hook(self, physics):
-        for geom, rgba in zip(self._odor_marker_geoms, self.marker_colors):
-            physics.bind(geom).rgba = np.array([*rgba[:3], 0])
+        OdorTargetOnlyArena.pre_visual_render_hook(self, physics)
         physics.bind(self.nest_geom).rgba[3] = 0
 
     def post_visual_render_hook(self, physics):
-        for geom, rgba in zip(self._odor_marker_geoms, self.marker_colors):
-            physics.bind(geom).rgba = np.array([*rgba[:3], 1])
+        OdorTargetOnlyArena.post_visual_render_hook(self, physics)
         physics.bind(self.nest_geom).rgba[3] = 1
 
     def setup_return_mode(self, physics):
@@ -832,8 +842,10 @@ class FoodToNestArena(HierarchicalArena):
         for geom in self._odor_marker_geoms:
             physics.bind(geom).rgba[3] = 0
 
+        # move the pillars under the arena and hide them
         for body in self.obstacle_bodies:
             physics.bind(body).mocap_pos[2] = -self.pillar_height - 5.0
+            physics.bind(body.find_all("geom")[0]).rgba = np.array([0, 0, 0, 0])
 
         self.move_ball(physics, 0, 0, self.ball_rest_height)
         self.make_ball_invisible(physics)
