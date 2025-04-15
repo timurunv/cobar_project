@@ -669,6 +669,7 @@ class LoomingBallArena(OdorTargetOnlyArena):
         self, fly_pos, fly_vel, intercept_pos, start_pos, orientation_vec
     ):
         """Visualize trajectory for debugging."""
+        import matplotlib.pyplot as plt 
         plt.scatter(fly_pos[0], fly_pos[1], label="fly pos", s=5)
         plt.scatter(
             intercept_pos[0], intercept_pos[1], label="fly interception pos", s=5
