@@ -1,5 +1,5 @@
 import numpy as np
-from cobar_miniproject.base_controller import BaseController
+from cobar_miniproject.base_controller import Action, BaseController, Observation
 from .utils import get_cpg, step_cpg
 from .olfaction import compute_olfaction_turn_bias
 #python run_simulation.py --level 0 --max-steps 2000
@@ -38,7 +38,7 @@ class Controller(BaseController):
             "adhesion": adhesion,
         }
 
-    def done_level(self, obs):
+    def done_level(self, obs: Observation):
         return self.quit
 
     def reset(self, **kwargs):
