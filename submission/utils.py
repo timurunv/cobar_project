@@ -63,3 +63,23 @@ def step_cpg(cpg_network, preprogrammed_steps, action):
     adhesion_onoff = np.array(adhesion_onoff).astype(int)
 
     return joint_angles, adhesion_onoff
+
+
+import matplotlib.pyplot as plt
+
+def plot_trajectory(savepath, obs, obstacle_poz, odor_poz, obstacle_size = 2, odor_size = 0.1, save = True):
+    plt.figure(figsize=(6,6), dpi=150)
+    plt.plot([observation["fly"][0][0] for observation in obs], [observation["fly"][0][1] for observation in obs], label="Fly trajectory")
+    if obstacle_poz.size !=0 : # if not empty
+        plt.plot([op[0] for op in obstacle_poz], [op[1] for op in obstacle_poz], 'ko', markersize=obstacle_size*2, label='Obstacles')
+        #TODO adapt marker size to obstacle size
+    if odor_poz.size !=0 : 
+        plt.plot([op[0] for op in odor_poz], [op[1] for op in odor_poz], 'ro', markersize=8, label='Odor Position')
+
+    plt.title(str(savepath).split("\\")[-1].split('.')[0])
+    plt.legend()
+    plt.axis('equal')
+    plt.xlabel("x (mm)")
+    plt.ylabel("y (mm)")
+    plt.savefig(savepath)
+    plt.show()

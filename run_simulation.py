@@ -9,6 +9,7 @@ from cobar_miniproject.cobar_fly import CobarFly
 from flygym import Camera, SingleFlySimulation
 from flygym.arena import FlatTerrain
 from tqdm import tqdm
+from submission.utils import plot_trajectory
 
 def run_simulation(
     submission_dir,
@@ -18,6 +19,8 @@ def run_simulation(
     max_steps,
     output_dir="outputs",
     progress=True,
+    save_video=True,
+    save_plot=False,
 ):
     sys.path.append(str(submission_dir.parent))
     module = importlib.import_module(submission_dir.name)
@@ -73,10 +76,14 @@ def run_simulation(
         if controller.done_level(obs):
             # finish the path integration level
             break
-        
-        # del obs['raw_vision']
+
+        if not obs["vision_updated"]: # to save memory
+            if "vision" in obs:
+                del obs["vision"]
+        if "raw_vision" in obs:
+            del obs["raw_vision"]
         obs_hist.append(obs)
-        info_hist.append(info)
+        #info_hist.append(info)
 
         if hasattr(controller, "quit") and controller.quit:
             print("Simulation terminated by user.")
@@ -85,11 +92,13 @@ def run_simulation(
             print("Target reached. Simulation terminated.")
             break
 
-    # TODO - maybe alternative where we save the obs and info and just do a plot of trajectories or something like that
-    # Save video
-    save_path = Path(output_dir) / f"level{level}_seed{seed}_iter{max_steps}.mp4"
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-    cam.save_video(save_path, stabilization_time=0)
+    if save_video: # Save video
+        save_path = Path(output_dir) / f"level{level}_seed{seed}_iter{max_steps}.mp4"
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        cam.save_video(save_path, stabilization_time=0)
+    if save_plot: # Save a plot of the trajectory
+        save_path = Path(output_dir) / f"level{level}_seed{seed}_iter{max_steps}.png"
+        plot_trajectory(save_path, obs_hist, level_arena.obstacle_positions, level_arena.odor_source, level_arena.obstacle_radius, level_arena.odor_dim)
 
 
 if __name__ == "__main__":
@@ -136,8 +145,19 @@ if __name__ == "__main__":
         help="Show progress bar during simulation.",
         default=True,
     )
+    parser.add_argument(
+        "--savevid",
+        action="store_true",
+        help="Save the video at the end of the simulation.",
+    )
+    parser.add_argument(
+        "--saveplot",
+        action="store_true",
+        help="Save a trajectory plot at the end of the simulation.",
+    )
     args = parser.parse_args()
-
+    if args.saveplot:
+        args.debug = True
     run_simulation(
         submission_dir=args.submission_dir,
         level=args.level,
@@ -146,4 +166,6 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
         max_steps=args.max_steps,
         progress=args.progress,
+        save_video=args.savevid,
+        save_plot=args.saveplot,
     )
