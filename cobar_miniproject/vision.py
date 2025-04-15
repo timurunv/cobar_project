@@ -7,7 +7,7 @@ def get_fly_vision(fly: Fly):
     assert (
         fly._curr_visual_input is not None
     ), "fly vision isn't enabled. Make sure `enable_vision` is set to True."
-    return (
+    return 255 - (
         255
         * np.hstack(
             [
