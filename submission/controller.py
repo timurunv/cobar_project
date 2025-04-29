@@ -14,7 +14,7 @@ class Controller(BaseController):
         seed=0,
         weight_olfaction=0.5, # ideas : weight dependent on intensity (love blindness), internal states
         weight_pillar_avoidance=0.5, # ideas : weight dependent on intensity (love blindness), internal states
-        obj_threshold=0.7, # threshold for object detection
+        obj_threshold=0.5, # threshold for object detection
     ):
         from flygym.examples.locomotion import PreprogrammedSteps
 
@@ -35,7 +35,7 @@ class Controller(BaseController):
 
     def _process_visual_observation(self, raw_obs):
         features = np.zeros((2, 3))
-        half_idx = np.unique(self.retina.ommatidia_id_map[180:], return_counts=False)
+        half_idx = np.unique(self.retina.ommatidia_id_map[220:], return_counts=False) #TODO maybe increase pr pas que ca bloque
         raw_obs["vision"][:, half_idx[:-1], :] = True
         for i, ommatidia_readings in enumerate(raw_obs["vision"]): #row_obs["vision"] of shape (2, 721, 2)
             is_obj = ommatidia_readings.max(axis=1) < self.obj_threshold # shape (721, )

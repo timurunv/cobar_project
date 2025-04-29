@@ -5,7 +5,7 @@ def calc_ipsilateral_speed(deviation, is_found):
     if not is_found:
         return 1.0
     else:
-        return np.clip(1 - deviation * 7, 0.4, 1.2) #TODO can tune
+        return np.clip(1 - deviation * 7, 0.4, 1.2) #TODO can tune and maybe baisser a 5
 
 def compute_pillar_avoidance(visual_features):
     left_deviation = 1 - visual_features[0] #or [1]
