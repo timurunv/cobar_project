@@ -8,8 +8,8 @@ def calc_ipsilateral_speed(deviation, is_found):
         return np.clip(1 - deviation * 5, 0.4, 1.2) #needs tuning
 
 def compute_pillar_avoidance(visual_features):
-    left_deviation = 1 - visual_features[0] #or [1]
-    right_deviation = visual_features[3] #or [4]
+    left_deviation = 1 - visual_features[1] #or [0]
+    right_deviation = visual_features[4] #or [3]
     left_found = visual_features[2] > 0.01 #if area is bigger than 1% of the ommatidia
     right_found = visual_features[5] > 0.01
     if not left_found:
