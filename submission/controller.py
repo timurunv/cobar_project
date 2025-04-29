@@ -37,7 +37,8 @@ class Controller(BaseController):
     def _process_visual_observation(self, raw_obs):
         features = np.zeros((2, 3))
         for i, ommatidia_readings in enumerate(raw_obs["vision"]): #row_obs["vision"] of shape (2, 721, 2)
-            is_obj = ommatidia_readings.max(axis=1) < 0.5 #self.obj_threshold # shape (721, )
+            is_obj = ommatidia_readings.max(axis=1) < self.obj_threshold # shape (721, )
+            is_obj[360:] = False # removing the ground as potential object
             is_obj_coords = self.coms[is_obj] # ommatidias in which object seen (nb ommatidia with object, 2 ), 2 for x and y coordinates
             if is_obj_coords.shape[0] > 0: #if there are ommatidia with object seen
                 features[i, :2] = is_obj_coords.mean(axis=0) # mean of each x and y coordinate from ommatida with object seen (2, ) --> center of object seen
