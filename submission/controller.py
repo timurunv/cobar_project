@@ -4,7 +4,6 @@ from .utils import get_cpg, step_cpg
 from .olfaction import compute_olfaction_turn_bias
 from .pillar_avoidance import compute_pillar_avoidance
 from flygym.vision.retina import Retina
-import matplotlib.pyplot as plt
 #python run_simulation.py --level 0 --max-steps 2000
 #python3 run_simulation.py --level 0 --max-steps 2000
 
@@ -36,9 +35,10 @@ class Controller(BaseController):
 
     def _process_visual_observation(self, raw_obs):
         features = np.zeros((2, 3))
+        half_idx = np.unique(self.retina.ommatidia_id_map[247:], return_counts=False)
+        raw_obs["vision"][:, half_idx[:-1], :] = True
         for i, ommatidia_readings in enumerate(raw_obs["vision"]): #row_obs["vision"] of shape (2, 721, 2)
             is_obj = ommatidia_readings.max(axis=1) < self.obj_threshold # shape (721, )
-            is_obj[360:] = False # removing the ground as potential object
             is_obj_coords = self.coms[is_obj] # ommatidias in which object seen (nb ommatidia with object, 2 ), 2 for x and y coordinates
             if is_obj_coords.shape[0] > 0: #if there are ommatidia with object seen
                 features[i, :2] = is_obj_coords.mean(axis=0) # mean of each x and y coordinate from ommatida with object seen (2, ) --> center of object seen
