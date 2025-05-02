@@ -14,7 +14,7 @@ class Controller(BaseController):
         seed=0,
         weight_olfaction=0.5, # ideas : weight dependent on intensity (love blindness), internal states
         weight_pillar_avoidance=0.5, # ideas : weight dependent on intensity (love blindness), internal states
-        obj_threshold=0.1, # threshold for object detection
+        obj_threshold=0.5, # threshold for object detection
     ):
         from flygym.examples.locomotion import PreprogrammedSteps
 
@@ -48,16 +48,18 @@ class Controller(BaseController):
 
     def _process_visual_observation(self, raw_obs):
         features = np.zeros((2, 3))
-        for i, ommatidia_readings in enumerate(raw_obs["vision"]):
-            is_obj = ommatidia_readings.max(axis=1) < self.obj_threshold
-            is_obj_coords = self.coms[is_obj]
-            if is_obj_coords.shape[0] > 0:
-                features[i, :2] = is_obj_coords.mean(axis=0)
-            features[i, 2] = is_obj_coords.shape[0]
+        half_idx = np.unique(self.retina.ommatidia_id_map[220:], return_counts=False) #TODO maybe increase pr pas que ca bloque
+        raw_obs["vision"][:, half_idx[:-1], :] = True
+        for i, ommatidia_readings in enumerate(raw_obs["vision"]): #row_obs["vision"] of shape (2, 721, 2)
+            is_obj = ommatidia_readings.max(axis=1) < self.obj_threshold # shape (721, )
+            is_obj_coords = self.coms[is_obj] # ommatidias in which object seen (nb ommatidia with object, 2 ), 2 for x and y coordinates
+            if is_obj_coords.shape[0] > 0: #if there are ommatidia with object seen
+                features[i, :2] = is_obj_coords.mean(axis=0) # mean of each x and y coordinate from ommatida with object seen (2, ) --> center of object seen
+            features[i, 2] = is_obj_coords.shape[0] # number of ommatidia with object seen (1, ) --> area of object seen
         features[:, 0] /= self.retina.nrows  # normalize y_center
         features[:, 1] /= self.retina.ncols  # normalize x_center
         features[:, 2] /= self.retina.num_ommatidia_per_eye  # normalize area
-        return features.ravel()
+        return features.ravel() # shape (6,)
 
     def _predict_roll_change(self):
         pre_img = prepare_fly_vision(self.vision_buffer[0])
