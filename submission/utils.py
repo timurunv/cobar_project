@@ -1,4 +1,20 @@
 import numpy as np
+from flygym.vision import Retina
+import cv2
+
+#obs keys
+#dict_keys(['joints', 'end_effectors', 'contact_forces', 'heading', 'velocity', 'odor_intensity', 'vision', 'raw_vision'])
+
+# obs["end_effectors"].shape - (6, 2)  # diff than tuto # (6, 3)
+# obs["contact_forces"].shape - (6, 3) # tuto (,6)
+# obs["joints"].shape - (3, 42)
+# obs["velocity"].shape - (1, 2)
+# obs["odor_intensity"] -  [[0.0010888  0.00107006 0.0010581  0.00105298]
+#                           [0.         0.         0.         0.        ]]
+
+# obs["heading"] - int # tuto (,3)
+# NO POSITION - (,3)
+
 
 
 def get_cpg(timestep, seed=0):
@@ -83,3 +99,39 @@ def plot_trajectory(savepath, obs, obstacle_poz, odor_poz, obstacle_size = 2, od
     plt.ylabel("y (mm)")
     plt.savefig(savepath)
     plt.show()
+
+def compute_optic_flow(img0, img1):
+    img0 = (img0 * 255).astype(np.uint8)
+    img1 = (img1 * 255).astype(np.uint8)
+    
+    flow = cv2.calcOpticalFlowFarneback(
+        img0, img1, None, 0.5, 2, 3, 2, 5, 1.1, 0
+    )
+    return flow
+
+
+def crop_hex_to_rect(visual_input):
+    ommatidia_id_map = Retina().ommatidia_id_map
+    rows = [np.unique(row) for row in ommatidia_id_map]
+    max_width = max(len(row) for row in rows)
+    rows = np.array([row for row in rows if len(row) == max_width])[:, 1:] - 1
+    cols = [np.unique(col) for col in rows.T]
+    min_height = min(len(col) for col in cols)
+    cols = [col[:min_height] for col in cols]
+    rows = np.array(cols).T
+    return visual_input[..., rows, :].max(-1)
+
+
+def prepare_fly_vision(two_eyes_vision, n_top_pixels=5):
+    left_eye = two_eyes_vision[0]
+    right_eye = two_eyes_vision[1]
+
+    left_eye_square = crop_hex_to_rect(left_eye)
+    right_eye_square = crop_hex_to_rect(right_eye)
+
+    left_eye_top = left_eye_square[:n_top_pixels]
+    right_eye_top = right_eye_square[:n_top_pixels]
+
+    stacked_eye = np.vstack([left_eye_top, right_eye_top])
+
+    return stacked_eye

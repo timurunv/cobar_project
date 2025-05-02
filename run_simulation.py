@@ -79,6 +79,7 @@ def run_simulation(
             # finish the path integration level
             break
 
+        # Reduce strain on memory
         if not obs["vision_updated"]: # to save memory
             if "vision" in obs:
                 del obs["vision"]
@@ -93,6 +94,11 @@ def run_simulation(
         if hasattr(level_arena, "quit") and level_arena.quit:
             print("Target reached. Simulation terminated.")
             break
+
+        # TODO test proprioception 
+        # if i > max_steps/2:
+        #     obs['reached_odour'] = True
+        
 
     if save_video: # Save video
         save_path = Path(output_dir) / f"level{level}_seed{seed}_iter{max_steps}.mp4"
