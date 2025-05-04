@@ -52,8 +52,11 @@ class Controller(BaseController):
     def get_actions(self, obs):
 
         #Vision
-        visual_features = self._process_visual_observation(obs)
-        self.action, object_detected = compute_pillar_avoidance(visual_features)
+        if obs.get("vision_updated", False):
+            visual_features = self._process_visual_observation(obs)
+            self.action, object_detected = compute_pillar_avoidance(visual_features)
+        else:
+            object_detected = False
         
         #Olfaction
         if not object_detected:
