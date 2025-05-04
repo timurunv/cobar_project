@@ -1,6 +1,8 @@
 import numpy as np
 from flygym.vision import Retina
 import cv2
+import matplotlib.pyplot as plt
+
 
 #obs keys
 #dict_keys(['joints', 'end_effectors', 'contact_forces', 'heading', 'velocity', 'odor_intensity', 'vision', 'raw_vision'])
@@ -81,7 +83,7 @@ def step_cpg(cpg_network, preprogrammed_steps, action):
     return joint_angles, adhesion_onoff
 
 
-import matplotlib.pyplot as plt
+
 
 def plot_trajectory(savepath, obs, obstacle_poz, odor_poz, obstacle_size = 2, odor_size = 0.1, save = True):
     plt.figure(figsize=(6,6), dpi=150)
@@ -98,7 +100,6 @@ def plot_trajectory(savepath, obs, obstacle_poz, odor_poz, obstacle_size = 2, od
     plt.xlabel("x (mm)")
     plt.ylabel("y (mm)")
     plt.savefig(savepath)
-    plt.show()
 
 def compute_optic_flow(img0, img1):
     img0 = (img0 * 255).astype(np.uint8)
@@ -123,8 +124,8 @@ def crop_hex_to_rect(visual_input):
 
 
 def prepare_fly_vision(two_eyes_vision, n_top_pixels=5):
-    left_eye = two_eyes_vision[0]
-    right_eye = two_eyes_vision[1]
+    left_eye = two_eyes_vision[:,0,:] # TODO test vision to see if this is correct, ie left is the first eye AND correct dimension fot he eyes not colours
+    right_eye = two_eyes_vision[:,1,:]
 
     left_eye_square = crop_hex_to_rect(left_eye)
     right_eye_square = crop_hex_to_rect(right_eye)

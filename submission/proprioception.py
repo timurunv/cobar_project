@@ -1,6 +1,15 @@
 import numpy as np
+from .utils import compute_optic_flow, prepare_fly_vision
 
 # various functions adapted from the exercise session to compute proprioceptive variables 
+
+def predict_roll_change(vision_buffer, n_top_pixels=5):
+    pre_img = prepare_fly_vision(vision_buffer[0], n_top_pixels=n_top_pixels)
+    post_img = prepare_fly_vision(vision_buffer[1], n_top_pixels=n_top_pixels)
+    flow = compute_optic_flow(pre_img, post_img)
+    mean_x_flow = np.mean(flow[..., 0])
+    return mean_x_flow
+
 
 def absolute_to_relative_pos(
         pos: np.ndarray, base_pos: np.ndarray, heading: np.ndarray
@@ -9,7 +18,7 @@ def absolute_to_relative_pos(
     This function converts an absolute position to a relative position
     with respect to a base position and heading of the fly.
 
-    It will be used to obtain the flycentric end effector (leg tip) positions.
+    It will be used to obtain the flycentric end-effector (leg tip) positions.
     """
 
     rel_pos = pos - base_pos
@@ -54,6 +63,12 @@ def get_stride_length_instantaneous(fly_pos, heading, end_effector_pos, last_end
     In this function the end_effector_pos is converted to a flycentric coordinate system using the absolute_to_relative_pos
     function. The stride length is calculated as the difference in the end effector position between two consecutive time steps
     in the flycentric coordinate system.
+
+    args:
+        fly_pos: (3,) - position of the fly in world coordinates
+        heading: (3,) - heading of the fly in world coordinates
+        end_effector_pos: (L, 6, 3) - position of the end effectors in world coordinates
+        last_end_effector_pos: (L, 6, 3) - position of the end effectors in world coordinates at the previous time step
     """
 
     # WE DONT HAVE FLY_POS so have to do it within a given window_vision or for each step
@@ -107,20 +122,3 @@ def extract_proprioceptive_variables_from_steps(stride_length, contact_force, ti
 
     return proprioceptive_heading_pred, proprioceptive_distance_pred
 
-
-def compute_proprioceptive_variables(obs_buffer): # TODO put it to self later
-    """
-    This function computes the proprioceptive variables for the fly.
-    It uses the stride length and contact forces to calculate the proprioceptive heading and distance signals.
-    """
-    # Assuming obs_buffer is a list of observations with keys "fly_pos", "heading", "end_effectors", "contact_forces"
-    end_efector_pos = np.array([obs['end_effectors'] for obs in obs_buffer])
-    heading = np.array([obs['heading'] for obs in obs_buffer])
-    contact_forces = np.array([obs['contact_forces'] for obs in obs_buffer])
-
-    AAA = obs["fly_pos"][:, :2] # TODO FLY POSITION
-    stride_length = get_stride_length(AAA, heading, end_efector_pos)
-
-    stride_length_difference, stride_length_sum = extract_proprioceptive_variables_from_steps(stride_length, contact_forces)
-
-    return stride_length_difference, stride_length_sum

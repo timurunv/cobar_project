@@ -3,8 +3,15 @@ from cobar_miniproject.base_controller import Action, BaseController, Observatio
 from .utils import get_cpg, step_cpg, compute_optic_flow, prepare_fly_vision
 from .olfaction import compute_olfaction_turn_bias
 from .pillar_avoidance import compute_pillar_avoidance
+from .proprioception import predict_roll_change, get_stride_length, extract_proprioceptive_variables_from_steps
 from flygym.vision.retina import Retina
-#python run_simulation.py --level 0 --max-steps 2000
+from .tests import test_heading
+
+from pathlib import Path
+TEST_PATH = Path('outputs/test_heading')
+
+import os 
+#python run_simulation.py --level 1 --output-dir out_tests --saveplot --max-steps 2000
 #python3 run_simulation.py --level 0 --max-steps 2000
 
 class Controller(BaseController):
@@ -41,7 +48,9 @@ class Controller(BaseController):
         self.estimated_orient_change = []
         self.vision_window_length = 5 # updating every 5 simulation steps
         self.vision_buffer = np.zeros((2,self.retina.num_ommatidia_per_eye, 2, 2))
-        self.counter_buffer = -1 # for efficiency
+        self.counter_vision_buffer = 0
+
+        self.test_heading_counter = 0
 
         self.fly_roll_hist = [] # TODO remove when finished testing
         
@@ -61,64 +70,85 @@ class Controller(BaseController):
         features[:, 2] /= self.retina.num_ommatidia_per_eye  # normalize area
         return features.ravel() # shape (6,)
 
-    def _predict_roll_change(self):
-        pre_img = prepare_fly_vision(self.vision_buffer[0])
-        post_img = prepare_fly_vision(self.vision_buffer[1])
-        flow = compute_optic_flow(pre_img, post_img)
-        mean_x_flow = np.mean(flow[..., 0])
-        return mean_x_flow
-
     def _update_internal_heading(self, obs):
-        self.vision_buffer = np.roll(self.vision_buffer, shift=-1, axis=0) # shift the buffer to the left
+        self.vision_buffer = np.roll(self.vision_buffer, shift=-1, axis=0) # shift the buffer to the left/beginning
         self.vision_buffer[..., -1] = obs["vision"] # update with latest vision
-        self.estimated_orient_change.append(self._predict_roll_change()) # append to memory
+        delta_roll_pred = predict_roll_change(self.vision_buffer, n_top_pixels=5) # 5 is the best empirically found value
+        self.estimated_orient_change.append(delta_roll_pred) # append to memory
         
         # TODO voir si on fait ça ici
         cum_estimated_orient_change = np.cumsum(self.estimated_orient_change) # assuming dt = 1, ie integrating over the internal clock of the fly 
         self.heading_angle += cum_estimated_orient_change[-1] # take latest and update it 
-        self.heading_angles.append[self.heading_angle] # TODO remove quand implémenté la distance
+        self.heading_angles.append(self.heading_angle) # TODO remove quand implémenté la distance
+
+
+    def _compute_proprioceptive_variables(self):
+        """
+        This function computes the proprioceptive variables for the fly.
+        It uses the stride length and contact forces to calculate the proprioceptive heading and distance signals.
+        It gets its data from self.obs_buffer
+        """
+        end_efector_pos = np.array([obs['end_effectors'] for obs in self.obs_buffer])
+        heading = np.array([obs['heading'] for obs in self.obs_buffer])
+        contact_forces = np.array([obs['contact_forces'] for obs in self.obs_buffer])
+
+        # AAA = obs["fly_pos"][:, :2] # TODO FLY POSITION
+        stride_length = get_stride_length(AAA, heading, end_efector_pos)
+
+        stride_length_difference, stride_length_sum = extract_proprioceptive_variables_from_steps(stride_length, contact_forces)
+
+        return stride_length_difference, stride_length_sum
 
     def get_actions(self, obs):
+        
         #Vision
-        visual_features = self._process_visual_observation(obs)
-        self.action, object_detected = compute_pillar_avoidance(visual_features)
+        if obs.get("vision_updated", False):
+            visual_features = self._process_visual_observation(obs)
+            self.action, object_detected = compute_pillar_avoidance(visual_features)
+
+            #Vision-based path integration
+            if self.counter_vision_buffer == -1: # initialization
+                self.vision_buffer[..., -1] = obs["vision"]
+                self.counter_vision_buffer = 0
+
+            self.counter_vision_buffer += 1 #COMMENT TO OMIT PATH INTEGRATION
+
+            if self.counter_vision_buffer >= self.vision_window_length: # append only every vision_window_length steps
+                self.counter_vision_buffer = 0
+
+                self._update_internal_heading(obs)
+                # self.fly_roll_hist.append(self.obs_buffer[-1]["heading"]) # non debug mode
+                self.fly_roll_hist.append(np.arctan2(self.obs_buffer[-1]["heading"][1],self.obs_buffer[-1]["heading"][0])) # debug mode #TODO remove when finished testing
+
+        else:
+            object_detected = False
         
         #Olfaction
         if not object_detected:
             self.action = np.ones((2,))
             self.action += compute_olfaction_turn_bias(obs) # it will subtract from either side
 
-        #Proprioception #WORK IN PROGRESS
-        if self.counter_buffer == -1: # initialize buffer to first vision observation
-            self.vision_buffer[..., 0] = obs["vision"]
-        # self.counter_buffer += 1 #UNCOMMENT TO RUN PROPRIOCEPTION PART
 
-        if self.obs_buffer: # list not empty
+        # TEST HEADING
+        # self.test_heading_counter += 1
+        # test_heading(self.test_heading_counter, obs, self.vision_buffer[..., -1], self.fly_roll_hist, self.estimated_orient_change, debug= True) # TODO remove when finished testing
+    
+        # Proprioceptive-based path integration
+        # self.obs_buffer.append({'velocity':obs['velocity'], 'heading' : obs["heading"], 'end_effectors' : obs["end_effectors"]}) # TODO QUESTION est ce que heading c'est pareil que fly_orientation ?
+        self.obs_buffer.append({'heading' : obs["fly_orientation"], 'end_effectors' : obs["end_effectors"]}) # for debug mode
+
+        if len(self.obs_buffer) > self.vision_window_length: # update proprioceptive 
             del self.obs_buffer[0] # remove first entry
-        self.obs_buffer.append({'velocity':obs['velocity'], 'heading' : obs["heading"], 'end_effectors' : obs["end_effectors"]})
-        # TODO QUESTION est ce que heading c'est pareil que fly_orientation ?
+            # self._compute_proprioceptive_variables() # NOT READY
+            # heading_vector = np.array([np.cos(self.heading_angle), np.sin(self.heading_angle)])
+            # speed = np.mean([obs['velocity'] for obs in self.obs_buffer]) # average speed over the last window_length steps
+            # dt = 1
+            # self.position += speed * heading_vector * dt  # update position in world space
 
-        if self.counter_buffer >= self.vision_window_length: # append only every vision_window_length steps
-            self._update_internal_heading(obs)
+            # TODO implement steps for distance
 
-            heading_vector = np.array([np.cos(self.heading_angle), np.sin(self.heading_angle)])
-            speed = np.mean([obs['velocity'] for obs in self.obs_buffer]) # average speed over the last window_length steps
-            dt = 1
-            self.position += speed * heading_vector * dt  # update position in world space
 
-            # TODO implement steps for distance and keep speed constant
 
-            # ideas to approximate the speed and distance
-            #    - use vision. probably best option but limited by the resolution of the ommatidia
-            #       he sugggests using the shades of gray to increase the resolution
-            #    - use descending drive and regress the speed from it
-            #       seems not like a good idea
-            #    - use proprioception to count the steps and get distance
-            #
-            #    => probably the best is to have a combination of all
-        
-        
-        self.fly_roll_hist.append(obs["heading"]) # TODO remove when finished testing
 
         if obs.get('reached_odour', False): # finished level -> return home
             print("Odour detected")
@@ -127,19 +157,7 @@ class Controller(BaseController):
             # adapt the action to the return vector based on x and y direction covered
             # self.action = 
 
-            # TODO pour l'instant ici mais idéalement de temps en temps
-            # self.heading_angles
-            # integrer le heading vu que en fly centric c'est juste aller de l'avant, donc projeter pour avoir la distance sur verticale 
-            # sur x et y en world centric pour savoir la distance a faire sur l'hypothénuse
-
-            cum_orientations_final = np.cumsum(self.estimated_orient_change)
-            import matplotlib.pyplot as plt
-            fig, ax = plt.subplots(1, 1, figsize=(9, 3), tight_layout=True)
-            ax.plot(cum_orientations_final, label="predicted")
-            twin_ax = ax.twinx()
-            twin_ax.plot(self.fly_roll_hist[::self.vision_window_length], label="true roll")
-            plt.savefig('fly_roll_proprio_test.png')
-            self.done_level(obs)
+            self.quit = True
 
         joint_angles, adhesion = step_cpg(
             cpg_network=self.cpg_network,

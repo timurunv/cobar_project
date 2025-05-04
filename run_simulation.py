@@ -80,11 +80,11 @@ def run_simulation(
             break
 
         # Reduce strain on memory
-        if not obs["vision_updated"]: # to save memory
-            if "vision" in obs:
-                del obs["vision"]
         if "raw_vision" in obs:
             del obs["raw_vision"]
+        if not obs["vision_updated"]:
+            if "vision" in obs:
+                del obs["vision"]
         obs_hist.append(obs)
         #info_hist.append(info)
 
@@ -96,7 +96,7 @@ def run_simulation(
             break
 
         # TODO test proprioception 
-        # if i > max_steps/2:
+        # if i > int(max_steps*4/5):
         #     obs['reached_odour'] = True
         
 
@@ -106,6 +106,7 @@ def run_simulation(
         cam.save_video(save_path, stabilization_time=0)
     if save_plot: # Save a plot of the trajectory
         save_path = Path(output_dir) / f"level{level}_seed{seed}_iter{max_steps}.png"
+        save_path.parent.mkdir(parents=True, exist_ok=True)
         plot_trajectory(save_path, obs_hist, level_arena.obstacle_positions, level_arena.odor_source, level_arena.obstacle_radius, level_arena.odor_dim)
 
 
