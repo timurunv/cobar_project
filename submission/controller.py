@@ -35,7 +35,7 @@ class Controller(BaseController):
 
     def _process_visual_observation(self, raw_obs):
         features = np.zeros((2, 3))
-        half_idx = np.unique(self.retina.ommatidia_id_map[220:], return_counts=False) #TODO maybe increase pr pas que ca bloque
+        half_idx = np.unique(self.retina.ommatidia_id_map[250:], return_counts=False) #TODO maybe increase pr pas que ca bloque
         raw_obs["vision"][:, half_idx[:-1], :] = True
         for i, ommatidia_readings in enumerate(raw_obs["vision"]): #row_obs["vision"] of shape (2, 721, 2)
             is_obj = ommatidia_readings.max(axis=1) < self.obj_threshold # shape (721, )
@@ -52,16 +52,24 @@ class Controller(BaseController):
     def get_actions(self, obs):
 
         #Vision
-        if obs.get("vision_updated", False):
-            visual_features = self._process_visual_observation(obs)
-            self.action, object_detected = compute_pillar_avoidance(visual_features)
-        else:
-            object_detected = False
+        visual_features = self._process_visual_observation(obs)
+        self.action, object_detected = compute_pillar_avoidance(visual_features)
+
+        #If object right in front, little turn towards olfaction (#TODO: or maybe add a dynamic weight to olfaction and vision?)
+        if self.action[0] == self.action[1] and object_detected:
+            olf_action = np.ones((2,))
+            olf_action += compute_olfaction_turn_bias(obs) # it will subtract from either side
+            self.action += olf_action
+            self.action /= 2     
+
+        #TODO: for the ball, if in front, normal avoidance, if on side and of certain size, increase overall speed   
         
         #Olfaction
         if not object_detected:
             self.action = np.ones((2,))
             self.action += compute_olfaction_turn_bias(obs) # it will subtract from either side
+
+        print("action", self.action)
 
         joint_angles, adhesion = step_cpg(
             cpg_network=self.cpg_network,
