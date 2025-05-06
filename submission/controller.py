@@ -14,7 +14,7 @@ class Controller(BaseController):
         seed=0,
         weight_olfaction=0.5, # ideas : weight dependent on intensity (love blindness), internal states
         weight_pillar_avoidance=0.5, # ideas : weight dependent on intensity (love blindness), internal states
-        obj_threshold=0.5, # threshold for object detection
+        obj_threshold=0.3, # threshold for object detection
     ):
         from flygym.examples.locomotion import PreprogrammedSteps
 
@@ -53,23 +53,25 @@ class Controller(BaseController):
 
         #Vision
         visual_features = self._process_visual_observation(obs)
-        self.action, object_detected = compute_pillar_avoidance(visual_features)
+        proximity_weight = np.clip(max(visual_features[2], visual_features[5]), 0, 0.2) / 0.2
+        vision_action, object_detected = compute_pillar_avoidance(visual_features)
 
         #If object right in front, little turn towards olfaction (#TODO: or maybe add a dynamic weight to olfaction and vision?)
-        if self.action[0] == self.action[1] and object_detected:
-            olf_action = np.ones((2,))
-            olf_action += compute_olfaction_turn_bias(obs) # it will subtract from either side
-            self.action += olf_action
-            self.action /= 2     
+        # if self.action[0] == self.action[1] and object_detected:
+        #     olf_action = np.ones((2,))
+        #     olf_action += compute_olfaction_turn_bias(obs) # it will subtract from either side
+        #     self.action += olf_action
+        #     self.action /= 2     
 
         #TODO: for the ball, if in front, normal avoidance, if on side and of certain size, increase overall speed   
         
         #Olfaction
-        if not object_detected:
-            self.action = np.ones((2,))
-            self.action += compute_olfaction_turn_bias(obs) # it will subtract from either side
+        # if not object_detected:
+        #     self.action = np.ones((2,))
+        #     self.action += compute_olfaction_turn_bias(obs) # it will subtract from either side
 
-        print("action", self.action)
+        # olfaction_action = np.ones((2,)) + compute_olfaction_turn_bias(obs)
+        # self.action = (1 - proximity_weight) * olfaction_action + proximity_weight * vision_action
 
         joint_angles, adhesion = step_cpg(
             cpg_network=self.cpg_network,
