@@ -1,7 +1,7 @@
 import numpy as np
 from cobar_miniproject.base_controller import Action, BaseController, Observation
 from .utils import get_cpg, step_cpg
-from .olfaction import compute_olfaction_turn_bias
+from .olfaction import compute_olfaction_turn_bias, compute_stationary_olfaction_bias
 from .pillar_avoidance import compute_pillar_avoidance
 from flygym.vision.retina import Retina
 from pathlib import Path
@@ -60,47 +60,30 @@ class Controller(BaseController):
         #Vision
         self.counter = self.counter + 1
         visual_features = self._process_visual_observation(obs)
-        proximity_weight = np.clip(max(visual_features[2], visual_features[5]), 0, 0.2) / 0.2
-        vision_action, object_detected = compute_pillar_avoidance(visual_features)
-        if self.counter > 5000 : #let some time for the fly to launch
-            if self.counter % 5  == 0:
-                self.velocities.append(obs['velocity'])
-            if self.counter % 1000 == 0 : #check every 1000 time steps
-                velocities_array = np.array([np.array(v) for v in self.velocities])
-                smoothed_velocity = gaussian_filter1d(velocities_array[:,0], sigma=15) #take forward velocity component
-                avrg_velocity = np.mean(smoothed_velocity)
-                
-                if avrg_velocity < 5 and avrg_velocity > -5:
-                    self.going_backward = True
-                    self.velocities = []
-                else : 
-                    self.going_backward = False
-            if self.going_backward : 
-                print("je suis le roi du monde")
-                    
-                
-        #if self.counter == 50000:
-        #    np.save("/Users/theolacroix/Desktop/MA4_EPFL_Cobar/cobar_project/outputs/caca", self.velocities)
+        #proximity_weight = np.clip(max(visual_features[2], visual_features[5]), 0, 0.2) / 0.2
+        self.action, object_detected = compute_pillar_avoidance(visual_features)
+
         #If object right in front, little turn towards olfaction (#TODO: or maybe add a dynamic weight to olfaction and vision?)
         # if self.action[0] == self.action[1] and object_detected:
         #     olf_action = np.ones((2,))
         #     olf_action += compute_olfaction_turn_bias(obs) # it will subtract from either side
         #     self.action += olf_action
-        #     self.action /= 2     
+        #     self.action /= 2  
+
+        if self.action[0] == self.action[1] and object_detected:
+            self.action = compute_stationary_olfaction_bias(obs)   
 
         #TODO: for the ball, if in front, normal avoidance, if on side and of certain size, increase overall speed   
         
         #Olfaction
         if not object_detected:
-            self.action = np.ones((2,))
-            self.action += compute_olfaction_turn_bias(obs) # it will subtract from either side
+            self.action = np.ones((2,)) + compute_olfaction_turn_bias(obs)
+            #self.action = compute_stationary_olfaction_bias(obs)
+            #self.action += compute_olfaction_turn_bias(obs) # it will subtract from either side
 
-        olfaction_action = np.ones((2,)) + compute_olfaction_turn_bias(obs)
-        if self.going_backward : 
-            self.action = np.array([-1.0, -1.0])
-        if not self.going_backward : 
-            self.action = (1 - proximity_weight) * olfaction_action + proximity_weight * vision_action
-
+        # olfaction_action = np.ones((2,)) + compute_olfaction_turn_bias(obs)
+        # self.action = (1 - proximity_weight) * olfaction_action + proximity_weight * vision_action
+        
         joint_angles, adhesion = step_cpg(
             cpg_network=self.cpg_network,
             preprogrammed_steps=self.preprogrammed_steps,
