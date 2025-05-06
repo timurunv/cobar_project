@@ -124,8 +124,8 @@ def crop_hex_to_rect(visual_input):
 
 
 def prepare_fly_vision(two_eyes_vision, n_top_pixels=5):
-    left_eye = two_eyes_vision[:,0,:] # TODO test vision to see if this is correct, ie left is the first eye AND correct dimension fot he eyes not colours
-    right_eye = two_eyes_vision[:,1,:]
+    left_eye = two_eyes_vision[0,:,:]
+    right_eye = two_eyes_vision[1,:,:]
 
     left_eye_square = crop_hex_to_rect(left_eye)
     right_eye_square = crop_hex_to_rect(right_eye)

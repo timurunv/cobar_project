@@ -3,7 +3,7 @@ from .utils import compute_optic_flow, prepare_fly_vision
 
 # various functions adapted from the exercise session to compute proprioceptive variables 
 
-def predict_roll_change(vision_buffer, n_top_pixels=5):
+def predict_roll_change(vision_buffer:list, n_top_pixels=5):
     pre_img = prepare_fly_vision(vision_buffer[0], n_top_pixels=n_top_pixels)
     post_img = prepare_fly_vision(vision_buffer[1], n_top_pixels=n_top_pixels)
     flow = compute_optic_flow(pre_img, post_img)
@@ -11,7 +11,7 @@ def predict_roll_change(vision_buffer, n_top_pixels=5):
     return mean_x_flow
 
 
-def absolute_to_relative_pos(
+def absolute_to_relative_pos( # NOT USED
         pos: np.ndarray, base_pos: np.ndarray, heading: np.ndarray
     ) -> np.ndarray:
     """
@@ -29,22 +29,19 @@ def absolute_to_relative_pos(
     return pos_rotated
 
 
-def get_stride_length(fly_pos, heading, end_effector_pos, last_end_effector_pos = None):
+def get_stride_length(end_effector_pos, last_end_effector_pos = None):
     """
     This function calculates the stride length of the fly by calculating the difference in the end effector position
     of the fly between two consecutive time steps. FOR ALL STEPS
 
-    In this function the end_effector_pos is converted to a flycentric coordinate system using the absolute_to_relative_pos
-    function. The stride length is calculated as the difference in the end effector position between two consecutive time steps
+    In this function the end_effector_pos is already in flycentric coordinates.
+    The stride length is calculated as the difference in the end effector position between two consecutive time steps
     in the flycentric coordinate system.
     """
     stride_length = []
-
     # TODO adapt it to compute as it goes, more natural
-    # WE DONT HAVE FLY_POS so have to do it within a given window_vision or for each step
-    # we would like to have it to switch to a fly centric vision
-    for i in range(len(fly_pos)):
-        rel_pos = absolute_to_relative_pos(end_effector_pos[i], fly_pos[i], heading[i])
+    for i in range(end_effector_pos.shape[0]):
+        rel_pos = end_effector_pos[i,:,:]
         if last_end_effector_pos is None:
             ee_diff = np.zeros_like(rel_pos)
         else:
@@ -53,9 +50,9 @@ def get_stride_length(fly_pos, heading, end_effector_pos, last_end_effector_pos 
         
         stride_length.append(ee_diff)
 
-    return np.array(stride_length)
+    return np.array(stride_length), last_end_effector_pos
 
-def get_stride_length_instantaneous(fly_pos, heading, end_effector_pos, last_end_effector_pos = None):
+def get_stride_length_instantaneous(end_effector_pos, last_end_effector_pos = None):
     """
     This function calculates the stride length of the fly by calculating the difference in the end effector position
     of the fly between two consecutive time steps.
@@ -70,19 +67,14 @@ def get_stride_length_instantaneous(fly_pos, heading, end_effector_pos, last_end
         end_effector_pos: (L, 6, 3) - position of the end effectors in world coordinates
         last_end_effector_pos: (L, 6, 3) - position of the end effectors in world coordinates at the previous time step
     """
-
-    # WE DONT HAVE FLY_POS so have to do it within a given window_vision or for each step
-    # we would like to have it to switch to a fly centric vision
-    
-    rel_pos = absolute_to_relative_pos(end_effector_pos, fly_pos, heading)
+    rel_pos = end_effector_pos
     if last_end_effector_pos is None:
         ee_diff = np.zeros_like(rel_pos)
     else:
         ee_diff = rel_pos - last_end_effector_pos
-
     return ee_diff
 
-def extract_proprioceptive_variables_from_steps(stride_length, contact_force, time_scale = 0.12, contact_force_thr = 1, dt = 1e-4):
+def extract_proprioceptive_variables_from_stride(stride_length, contact_force, time_scale = 0.12, contact_force_thr = 1, dt = 1e-4):
     """
     This function calculates the proprioceptive heading and distance signals from step information.
 
@@ -102,8 +94,8 @@ def extract_proprioceptive_variables_from_steps(stride_length, contact_force, ti
     # Extract the stride length for each side along the x axis
     stride_left = stride_length[:, :3 , 0] # first 3 legs
     stride_right = stride_length[:, 3:, 0] # last 3 legs
-
-    contact_mask = contact_force > contact_force_thr  # (L, 6)
+    # print(contact_force[:,:,-1])
+    contact_mask = contact_force[:,:,-1] > contact_force_thr  # (Window, 6) # take force only on z axis
     
     # Calculate the stride length for the stance period (touching the ground)
     stride_left = (stride_left * contact_mask[:, :3]).sum(axis=1)

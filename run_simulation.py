@@ -80,12 +80,17 @@ def run_simulation(
             break
 
         # Reduce strain on memory
-        if "raw_vision" in obs:
-            del obs["raw_vision"]
-        if not obs["vision_updated"]:
-            if "vision" in obs:
-                del obs["vision"]
-        obs_hist.append(obs)
+        obs_ = obs.copy()
+        if not obs_["vision_updated"]:
+            if "vision" in obs_:
+                del obs_["vision"]
+        if "raw_vision" in obs_:
+            del obs_["raw_vision"]
+        if "raw_vision" in info:
+            del info["raw_vision"]
+        
+        if save_plot:
+            obs_hist.append(obs_)
         #info_hist.append(info)
 
         if hasattr(controller, "quit") and controller.quit:
@@ -96,8 +101,8 @@ def run_simulation(
             break
 
         # TODO test proprioception 
-        # if i > int(max_steps*4/5):
-        #     obs['reached_odour'] = True
+        if i > int(max_steps*4/5):
+            obs['reached_odour'] = True
         
 
     if save_video: # Save video
