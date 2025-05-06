@@ -62,10 +62,10 @@ class Controller(BaseController):
         visual_features = self._process_visual_observation(obs)
         proximity_weight = np.clip(max(visual_features[2], visual_features[5]), 0, 0.2) / 0.2
         vision_action, object_detected = compute_pillar_avoidance(visual_features)
-        if self.counter > 5000 :
+        if self.counter > 5000 : #let some time for the fly to launch
             if self.counter % 5  == 0:
                 self.velocities.append(obs['velocity'])
-            if self.counter % 1000 == 0 :
+            if self.counter % 1000 == 0 : #check every 1000 time steps
                 velocities_array = np.array([np.array(v) for v in self.velocities])
                 smoothed_velocity = gaussian_filter1d(velocities_array[:,0], sigma=15) #take forward velocity component
                 avrg_velocity = np.mean(smoothed_velocity)
