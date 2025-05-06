@@ -4,6 +4,7 @@ from .utils import get_cpg, step_cpg
 from .olfaction import compute_olfaction_turn_bias
 from .pillar_avoidance import compute_pillar_avoidance
 from flygym.vision.retina import Retina
+from pathlib import Path
 #python run_simulation.py --level 0 --max-steps 2000
 #python3 run_simulation.py --level 0 --max-steps 2000
 
@@ -14,7 +15,7 @@ class Controller(BaseController):
         seed=0,
         weight_olfaction=0.5, # ideas : weight dependent on intensity (love blindness), internal states
         weight_pillar_avoidance=0.5, # ideas : weight dependent on intensity (love blindness), internal states
-        obj_threshold=0.5, # threshold for object detection
+        obj_threshold=0.3, # threshold for object detection 
     ):
         from flygym.examples.locomotion import PreprogrammedSteps
 
@@ -32,10 +33,13 @@ class Controller(BaseController):
         for i in range(self.retina.num_ommatidia_per_eye):
             mask = self.retina.ommatidia_id_map == i + 1
             self.coms[i, :] = np.argwhere(mask).mean(axis=0)
+        self.last_action = [0,0]
+        
+        self.counter = 0
 
     def _process_visual_observation(self, raw_obs):
         features = np.zeros((2, 3))
-        half_idx = np.unique(self.retina.ommatidia_id_map[250:], return_counts=False) #TODO maybe increase pr pas que ca bloque
+        half_idx = np.unique(self.retina.ommatidia_id_map[220:], return_counts=False) #TODO maybe increase pr pas que ca bloque
         raw_obs["vision"][:, half_idx[:-1], :] = True
         for i, ommatidia_readings in enumerate(raw_obs["vision"]): #row_obs["vision"] of shape (2, 721, 2)
             is_obj = ommatidia_readings.max(axis=1) < self.obj_threshold # shape (721, )
@@ -46,30 +50,33 @@ class Controller(BaseController):
         features[:, 0] /= self.retina.nrows  # normalize y_center
         features[:, 1] /= self.retina.ncols  # normalize x_center
         features[:, 2] /= self.retina.num_ommatidia_per_eye  # normalize area
-        return features.ravel() # shape (6,)
+        return features.ravel() # shape (6,) --> used in compute_pillar_avoidance
 
 
     def get_actions(self, obs):
 
         #Vision
         visual_features = self._process_visual_observation(obs)
-        self.action, object_detected = compute_pillar_avoidance(visual_features)
-
+        proximity_weight = np.clip(max(visual_features[2], visual_features[5]), 0, 0.2) / 0.2
+        vision_action, object_detected = compute_pillar_avoidance(visual_features)
+        if self.counter % 100  == 0:
+            np.save(Path.cwd() /f'outputs/velocity_{self.counter}', obs['velocity'])
         #If object right in front, little turn towards olfaction (#TODO: or maybe add a dynamic weight to olfaction and vision?)
-        if self.action[0] == self.action[1] and object_detected:
-            olf_action = np.ones((2,))
-            olf_action += compute_olfaction_turn_bias(obs) # it will subtract from either side
-            self.action += olf_action
-            self.action /= 2     
+        # if self.action[0] == self.action[1] and object_detected:
+        #     olf_action = np.ones((2,))
+        #     olf_action += compute_olfaction_turn_bias(obs) # it will subtract from either side
+        #     self.action += olf_action
+        #     self.action /= 2     
 
         #TODO: for the ball, if in front, normal avoidance, if on side and of certain size, increase overall speed   
         
         #Olfaction
-        if not object_detected:
-            self.action = np.ones((2,))
-            self.action += compute_olfaction_turn_bias(obs) # it will subtract from either side
+        # if not object_detected:
+        #     self.action = np.ones((2,))
+        #     self.action += compute_olfaction_turn_bias(obs) # it will subtract from either side
 
-        print("action", self.action)
+        # olfaction_action = np.ones((2,)) + compute_olfaction_turn_bias(obs)
+        # self.action = (1 - proximity_weight) * olfaction_action + proximity_weight * vision_action
 
         joint_angles, adhesion = step_cpg(
             cpg_network=self.cpg_network,
