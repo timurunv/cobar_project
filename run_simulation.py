@@ -115,6 +115,8 @@ def run_simulation(
         plot_trajectory(save_path, obs_hist, level_arena.obstacle_positions, level_arena.odor_source, level_arena.obstacle_radius, level_arena.odor_dim)
 
 
+    
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the fly simulation.")
     parser.add_argument(

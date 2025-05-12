@@ -2,7 +2,7 @@ from pathlib import Path
 import numpy as np
 import os
 BASE_DIR = Path.cwd()
-TEST_PATH = BASE_DIR / 'outputs' /'test_heading' / '50k' # test_heading
+TEST_PATH = BASE_DIR / 'outputs' /'test_proprio' / '5k' # test_heading
 
 TEST_PATH.mkdir(parents=True, exist_ok=True)
 
@@ -23,6 +23,6 @@ def test_proprio(counter, end_effectors, proprio_heading_pred, proprio_distance_
     # see jupyter notebook outputs/tests/test_proprio.ipynb for the file where this is used
     # if counter >300 and counter < 400:
     #     np.save(TEST_PATH / f'end_effectors_{counter}.npy', end_effectors)
-    if counter % 500 == 0:
+    if counter % 100 == 0:
         np.save(TEST_PATH / f'proprio_heading_pred_{counter}.npy', proprio_heading_pred)
         np.save(TEST_PATH / f'proprio_distance_pred_{counter}.npy', proprio_distance_pred)

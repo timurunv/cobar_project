@@ -49,7 +49,7 @@ class Controller(BaseController):
         self.position = np.array([0, 0]) # initial position in fly_centric space
         self.estimated_orient_change = []
         self.vision_window_length = 2 # updating every 2 vision update steps
-        self.proprio_window_length = 5 # updating every 5 simulation steps
+        self.proprio_window_length = 2400 # updating every 2 stance cycles of the fly (2*0.12[s]/1e-4[s/step])
         self.vision_buffer = []
         self.counter_vision_buffer = -1
         self.last_end_effector_pos = None
@@ -98,6 +98,7 @@ class Controller(BaseController):
 
         stride_length, self.last_end_effector_pos = get_stride_length(end_effector_pos = end_efector_pos, last_end_effector_pos= self.last_end_effector_pos)
         proprio_heading_pred, proprio_distance_pred = extract_proprioceptive_variables_from_stride(stride_length, contact_forces)
+        del self.obs_buffer[:int(self.proprio_window_length/2)] # remove previous stance cycle
 
         return proprio_heading_pred, proprio_distance_pred
 
@@ -122,8 +123,7 @@ class Controller(BaseController):
             if self.counter_vision_buffer >= self.vision_window_length: # append only every vision_window_length steps
                 self.counter_vision_buffer = 0
                 self._update_internal_heading(obs)
-                # self.fly_roll_hist.append(self.obs_buffer[-1]["heading"]) # non debug mode
-                self.fly_roll_hist.append(np.arctan2(self.obs_buffer[-1]["heading"][1],self.obs_buffer[-1]["heading"][0])) # debug mode 
+                self.fly_roll_hist.append(self.obs_buffer[-1]["heading"]) 
 
         else:
             object_detected = False
@@ -134,14 +134,13 @@ class Controller(BaseController):
             self.action += compute_olfaction_turn_bias(obs) # it will subtract from either side
         
         # Proprioceptive-based path integration
-        # self.obs_buffer.append({'velocity':obs['velocity'], 'heading' : obs["heading"], 'end_effectors' : obs["end_effectors"], 'contact_forces': obs['contact_forces']}) # TODO maybe remove heading if computed differently
-        self.obs_buffer.append({'heading' : obs["fly_orientation"], 'end_effectors' : obs["end_effectors"], 'contact_forces': obs['contact_forces']}) # for debug mode
-
-        if len(self.obs_buffer) > self.proprio_window_length: # update proprioceptive 
-            del self.obs_buffer[0] # remove first entry
+        self.obs_buffer.append({'velocity':obs['velocity'], 'heading' : obs["heading"], 'end_effectors' : obs["end_effectors"], 'contact_forces': obs['contact_forces']}) # TODO maybe remove heading if computed differently
+        
+        if len(self.obs_buffer) >= self.proprio_window_length: # update proprioceptive 
             proprio_heading_pred, proprio_distance_pred = self._compute_proprioceptive_variables()
+            # print(proprio_distance_pred, proprio_heading_pred)
             # TEST distance
-            # self.tests_counter += 1
+            self.tests_counter += 1
             # test_proprio(self.tests_counter, obs["end_effectors"], proprio_heading_pred, proprio_distance_pred)
 
             # heading_vector = np.array([np.cos(self.heading_angle), np.sin(self.heading_angle)])
@@ -156,7 +155,7 @@ class Controller(BaseController):
 
         if obs.get('reached_odour', False): # finished level -> return home
             print("Odour detected")
-            test_heading(self.tests_counter, obs, self.vision_buffer[-1], self.fly_roll_hist, self.estimated_orient_change, debug= True)
+            # test_heading(self.tests_counter, obs, self.vision_buffer[-1], self.fly_roll_hist, self.estimated_orient_change, debug= True)
             # return_vector = -self.position
 
 

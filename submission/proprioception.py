@@ -74,7 +74,7 @@ def get_stride_length_instantaneous(end_effector_pos, last_end_effector_pos = No
         ee_diff = rel_pos - last_end_effector_pos
     return ee_diff
 
-def extract_proprioceptive_variables_from_stride(stride_length, contact_force, time_scale = 0.12, contact_force_thr = 1, dt = 1e-4):
+def extract_proprioceptive_variables_from_stride(stride_length, contact_force, contact_force_thr = 1):
     """
     This function calculates the proprioceptive heading and distance signals from step information.
 
@@ -83,18 +83,16 @@ def extract_proprioceptive_variables_from_stride(stride_length, contact_force, t
 
     The proprioceptive DISTANCE signal is calculated as the sum of the stride length
     of the left and right side of the fly.
-
-    time_scale = 0.12 from the exercises
-    dt = 1e-4 from the simulation timestep TODO check
     contact_force_thr = 1
     """
+    time_scale = 0.12 # time scale of stance cycle
+    dt = 1e-4 # from the simulation timestep
     window_len = int(time_scale / dt)
 
     # Calculate total stride (Σstride) for each side
     # Extract the stride length for each side along the x axis
     stride_left = stride_length[:, :3 , 0] # first 3 legs
     stride_right = stride_length[:, 3:, 0] # last 3 legs
-    # print(contact_force[:,:,-1])
     contact_mask = contact_force[:,:,-1] > contact_force_thr  # (Window, 6) # take force only on z axis
     
     # Calculate the stride length for the stance period (touching the ground)
@@ -103,7 +101,9 @@ def extract_proprioceptive_variables_from_stride(stride_length, contact_force, t
 
     stride_total_left = np.cumsum(stride_left, axis=0)
     stride_total_right = np.cumsum(stride_right, axis=0)
-
+    print('\n\n\n')
+    print(stride_total_left.shape, stride_total_left)
+    print(stride_total_right.shape, stride_total_right)
     # Calculate difference in Σstride over proprioceptive time window (ΔΣstride)
     stride_total_diff_left = stride_total_left[window_len:] - stride_total_left[:-window_len]
     stride_total_diff_right = stride_total_right[window_len:] - stride_total_right[:-window_len]
