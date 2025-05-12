@@ -2,12 +2,15 @@ import numpy as np
 from cobar_miniproject.base_controller import Action, BaseController, Observation
 from .utils import get_cpg, step_cpg, compute_optic_flow, prepare_fly_vision
 from .olfaction import compute_olfaction_turn_bias
+from .utils import get_cpg, step_cpg
+from .olfaction import compute_olfaction_turn_bias, compute_stationary_olfaction_bias
 from .pillar_avoidance import compute_pillar_avoidance
 from .proprioception import predict_roll_change, get_stride_length, extract_proprioceptive_variables_from_stride
 from flygym.vision.retina import Retina
 from .tests import test_heading, test_proprio
 
 from pathlib import Path
+from scipy.ndimage import gaussian_filter1d
 TEST_PATH = Path('outputs/test_heading')
 TEST_PATH.mkdir(parents=True, exist_ok=True)
 
@@ -23,7 +26,7 @@ class Controller(BaseController):
         seed=0,
         weight_olfaction=0.5, # ideas : weight dependent on intensity (love blindness), internal states
         weight_pillar_avoidance=0.5, # ideas : weight dependent on intensity (love blindness), internal states
-        obj_threshold=0.5, # threshold for object detection
+        obj_threshold=0.3, # threshold for object detection 
     ):
         from flygym.examples.locomotion import PreprogrammedSteps
 
@@ -61,7 +64,7 @@ class Controller(BaseController):
 
     def _process_visual_observation(self, raw_obs):
         features = np.zeros((2, 3))
-        half_idx = np.unique(self.retina.ommatidia_id_map[220:], return_counts=False) #TODO maybe increase pr pas que ca bloque
+        half_idx = np.unique(self.retina.ommatidia_id_map[250:], return_counts=False) #TODO maybe increase pr pas que ca bloque
         raw_obs["vision"][:, half_idx[:-1], :] = True
         for i, ommatidia_readings in enumerate(raw_obs["vision"]): #row_obs["vision"] of shape (2, 721, 2)
             is_obj = ommatidia_readings.max(axis=1) < self.obj_threshold # shape (721, )
@@ -72,7 +75,7 @@ class Controller(BaseController):
         features[:, 0] /= self.retina.nrows  # normalize y_center
         features[:, 1] /= self.retina.ncols  # normalize x_center
         features[:, 2] /= self.retina.num_ommatidia_per_eye  # normalize area
-        return features.ravel() # shape (6,)
+        return features.ravel() # shape (6,) --> used in compute_pillar_avoidance
 
     def _update_internal_heading(self, obs):
         del self.vision_buffer[0] # remove first entry
@@ -109,6 +112,9 @@ class Controller(BaseController):
             visual_features = self._process_visual_observation(obs.copy())
             self.action, object_detected = compute_pillar_avoidance(visual_features)
 
+            if self.action[0] == self.action[1] and object_detected:
+                self.action = compute_stationary_olfaction_bias(obs) 
+
             #Vision-based path integration
             if self.counter_vision_buffer == -1: # initialization
                 self.vision_buffer.append(obs["vision"]) ; self.vision_buffer.append(obs["vision"]) # append twice to fill the buffer
@@ -130,8 +136,7 @@ class Controller(BaseController):
         
         #Olfaction
         if not object_detected:
-            self.action = np.ones((2,))
-            self.action += compute_olfaction_turn_bias(obs) # it will subtract from either side
+            self.action = np.ones((2,)) + compute_olfaction_turn_bias(obs)
         
         # Proprioceptive-based path integration
         self.obs_buffer.append({'velocity':obs['velocity'], 'heading' : obs["heading"], 'end_effectors' : obs["end_effectors"], 'contact_forces': obs['contact_forces']}) # TODO maybe remove heading if computed differently
@@ -165,12 +170,15 @@ class Controller(BaseController):
 
             self.quit = True
 
+        # olfaction_action = np.ones((2,)) + compute_olfaction_turn_bias(obs)
+        # self.action = (1 - proximity_weight) * olfaction_action + proximity_weight * vision_action
+        
         joint_angles, adhesion = step_cpg(
             cpg_network=self.cpg_network,
             preprogrammed_steps=self.preprogrammed_steps,
             action=self.action,
         )
-
+        print(self.action)
         return {
             "joints": joint_angles,
             "adhesion": adhesion,

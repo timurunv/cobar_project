@@ -6,12 +6,18 @@ from tqdm import trange
 from flygym import Camera
 from cobar_miniproject import levels
 from cobar_miniproject.cobar_fly import CobarFly
-from cobar_miniproject.vision import get_fly_vision
+from cobar_miniproject.vision import (
+    get_fly_vision,
+    get_fly_vision_raw,
+    render_image_with_vision,
+)
 from flygym import Camera, SingleFlySimulation
 from flygym.arena import FlatTerrain
 from tqdm import tqdm
 from submission.utils import plot_trajectory
 from matplotlib import pyplot as plt
+import cv2
+
 
 def run_simulation(
     submission_dir,
@@ -51,7 +57,7 @@ def run_simulation(
         camera_name="camera_top_zoomout",
         targeted_fly_names=[fly.name],
         camera_parameters=cam_params,
-        play_speed=0.2,
+        play_speed=2.0,
     )
 
     sim = SingleFlySimulation(
@@ -74,7 +80,20 @@ def run_simulation(
     for i in step_range:
         # Get observations
         obs, reward, terminated, truncated, info = sim.step(controller.get_actions(obs))
-        sim.render()
+        rendered_img = sim.render()[0]
+        RENDER_TYPE = "RAW_VISION"
+        if rendered_img is not None:
+            if RENDER_TYPE == "RAW_VISION":
+                rendered_img = render_image_with_vision(
+                    rendered_img, get_fly_vision(fly), obs["odor_intensity"],
+                )
+            else:
+                rendered_img = render_image_with_vision(
+                    rendered_img, get_fly_vision_raw(fly), obs["odor_intensity"],
+                )
+            rendered_img = cv2.cvtColor(rendered_img, cv2.COLOR_BGR2RGB)
+            cv2.imshow("Simulation", rendered_img)
+            cv2.waitKey(1)
         if controller.done_level(obs):
             # finish the path integration level
             break
