@@ -25,3 +25,11 @@ def compute_olfaction_turn_bias(obs, attractive_gain = -500, aversive_gain = 80)
     control_signal[side_to_modulate] -= modulation_amount
 
     return control_signal
+
+def compute_stationary_olfaction_bias(obs):
+    control_signal = compute_olfaction_turn_bias(obs)
+    if np.abs(control_signal[0]) != 0:
+        control_signal[1] = -control_signal[0]
+    else:
+        control_signal[0] = -control_signal[1]
+    return control_signal
