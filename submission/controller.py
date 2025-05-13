@@ -70,7 +70,6 @@ class Controller(BaseController):
         ball_alert = is_ball(rgb_features, self.ball_threshold)
         
         if ball_alert:
-            print("Ball detected")
             self.action = np.zeros((2,)) #stop moving
         else:
             #Pillar avoidance
@@ -81,6 +80,24 @@ class Controller(BaseController):
             #Olfaction (only if no object or ball detected)
             if not object_detected:
                 self.action = np.ones((2,)) + compute_olfaction_turn_bias(obs)
+                
+            if self.counter > 2000 :
+                if self.counter % 5  == 0:
+                    self.velocities.append(obs['velocity'])
+                    
+                if self.counter % 1000 == 0 :
+                    velocities_array = np.array([np.array(v) for v in self.velocities])
+                    smoothed_velocity = gaussian_filter1d(velocities_array[:,0], sigma=15) #take forward velocity component
+                    avrg_velocity = np.mean(smoothed_velocity)
+                    if avrg_velocity < 5 and avrg_velocity > -5:
+                        self.going_backward = True
+                    else : 
+                        self.going_backward = False
+                        
+                    self.velocities = []
+                if self.going_backward : 
+                    self.action = np.array([-1.0, -1.0])
+                
         
         joint_angles, adhesion = step_cpg(
             cpg_network=self.cpg_network,
