@@ -57,7 +57,7 @@ def run_simulation(
         camera_name="camera_top_zoomout",
         targeted_fly_names=[fly.name],
         camera_parameters=cam_params,
-        play_speed=2.0,
+        play_speed=1.0,
     )
 
     sim = SingleFlySimulation(
