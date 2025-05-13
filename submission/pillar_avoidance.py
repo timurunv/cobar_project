@@ -27,5 +27,4 @@ def compute_pillar_avoidance(visual_features):
             calc_ipsilateral_speed(left_deviation, left_found),
         ]
     )
-    print("Control signal: ", control_signal)
     return control_signal, object_detected

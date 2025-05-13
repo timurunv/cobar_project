@@ -3,6 +3,7 @@ from cobar_miniproject.base_controller import Action, BaseController, Observatio
 from .utils import get_cpg, step_cpg
 from .olfaction import compute_olfaction_turn_bias, compute_stationary_olfaction_bias
 from .pillar_avoidance import compute_pillar_avoidance
+from .ball_avoidance import is_ball
 from flygym.vision.retina import Retina
 from pathlib import Path
 from scipy.ndimage import gaussian_filter1d
@@ -17,6 +18,7 @@ class Controller(BaseController):
         weight_olfaction=0.5, # ideas : weight dependent on intensity (love blindness), internal states
         weight_pillar_avoidance=0.5, # ideas : weight dependent on intensity (love blindness), internal states
         obj_threshold=0.3, # threshold for object detection 
+        ball_threshold=0.01, # threshold for ball detection
     ):
         from flygym.examples.locomotion import PreprogrammedSteps
 
@@ -29,6 +31,7 @@ class Controller(BaseController):
 
         self.retina = Retina()
         self.obj_threshold = obj_threshold
+        self.ball_threshold = ball_threshold
         self.weight_pillar_avoidance = weight_pillar_avoidance
         self.coms = np.empty((self.retina.num_ommatidia_per_eye, 2))
         for i in range(self.retina.num_ommatidia_per_eye):
@@ -41,8 +44,11 @@ class Controller(BaseController):
 
     def _process_visual_observation(self, raw_obs):
         features = np.zeros((2, 3))
-        half_idx = np.unique(self.retina.ommatidia_id_map[250:], return_counts=False) #TODO maybe increase pr pas que ca bloque
+        half_idx = np.unique(self.retina.ommatidia_id_map[250:], return_counts=False)
         raw_obs["vision"][:, half_idx[:-1], :] = True
+        rgb_features = raw_obs["raw_vision"]
+
+        #Check if object is close-by
         for i, ommatidia_readings in enumerate(raw_obs["vision"]): #row_obs["vision"] of shape (2, 721, 2)
             is_obj = ommatidia_readings.max(axis=1) < self.obj_threshold # shape (721, )
             is_obj_coords = self.coms[is_obj] # ommatidias in which object seen (nb ommatidia with object, 2 ), 2 for x and y coordinates
@@ -52,44 +58,38 @@ class Controller(BaseController):
         features[:, 0] /= self.retina.nrows  # normalize y_center
         features[:, 1] /= self.retina.ncols  # normalize x_center
         features[:, 2] /= self.retina.num_ommatidia_per_eye  # normalize area
-        return features.ravel() # shape (6,) --> used in compute_pillar_avoidance
+        return features.ravel(), rgb_features # shape (6,) --> used in compute_pillar_avoidance
 
 
     def get_actions(self, obs):
 
         #Vision
         self.counter = self.counter + 1
-        visual_features = self._process_visual_observation(obs)
-        #proximity_weight = np.clip(max(visual_features[2], visual_features[5]), 0, 0.2) / 0.2
-        self.action, object_detected = compute_pillar_avoidance(visual_features)
+        visual_features, rgb_features = self._process_visual_observation(obs)
 
-        #If object right in front, little turn towards olfaction (#TODO: or maybe add a dynamic weight to olfaction and vision?)
-        # if self.action[0] == self.action[1] and object_detected:
-        #     olf_action = np.ones((2,))
-        #     olf_action += compute_olfaction_turn_bias(obs) # it will subtract from either side
-        #     self.action += olf_action
-        #     self.action /= 2  
-
-        if self.action[0] == self.action[1] and object_detected:
-            self.action = compute_stationary_olfaction_bias(obs)   
-
-        #TODO: for the ball, if in front, normal avoidance, if on side and of certain size, increase overall speed   
+        ball_alert = is_ball(rgb_features, self.ball_threshold)
         
-        #Olfaction
-        if not object_detected:
-            self.action = np.ones((2,)) + compute_olfaction_turn_bias(obs)
-            #self.action = compute_stationary_olfaction_bias(obs)
-            #self.action += compute_olfaction_turn_bias(obs) # it will subtract from either side
+        if ball_alert:
+            print("Ball detected")
+            self.action = np.zeros((2,)) #stop moving
+        else:
+            #Pillar avoidance
+            self.action, object_detected = compute_pillar_avoidance(visual_features)
+            if self.action[0] == self.action[1] and object_detected:
+                self.action = compute_stationary_olfaction_bias(obs)   
 
-        # olfaction_action = np.ones((2,)) + compute_olfaction_turn_bias(obs)
-        # self.action = (1 - proximity_weight) * olfaction_action + proximity_weight * vision_action
+            #Olfaction (only if no object or ball detected)
+            if not object_detected:
+                self.action = np.ones((2,)) + compute_olfaction_turn_bias(obs)
         
         joint_angles, adhesion = step_cpg(
             cpg_network=self.cpg_network,
             preprogrammed_steps=self.preprogrammed_steps,
             action=self.action,
         )
-        print(self.action)
+        if ball_alert:
+            adhesion = np.ones(6)
+
         return {
             "joints": joint_angles,
             "adhesion": adhesion,
