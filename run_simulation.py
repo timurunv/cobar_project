@@ -29,10 +29,11 @@ def run_simulation(
     progress=True,
     save_video=True,
     save_plot=False,
+    generate_trajectories=False,
 ):
     sys.path.append(str(submission_dir.parent))
     module = importlib.import_module(submission_dir.name)
-    controller = module.controller.Controller()
+    controller = module.controller.Controller(seed_sim=seed)
     timestep = 1e-4
 
     fly = CobarFly(
@@ -79,10 +80,10 @@ def run_simulation(
 
     for i in step_range:
         # Get observations
-        obs, reward, terminated, truncated, info = sim.step(controller.get_actions(obs))
+        obs, reward, terminated, truncated, info = sim.step(controller.get_actions(obs, generate_trajectories=generate_trajectories))
         rendered_img = sim.render()[0]
         RENDER_TYPE = "RAW_VISION"
-        if rendered_img is not None:
+        if False: #rendered_img is not None:
             if RENDER_TYPE == "RAW_VISION":
                 rendered_img = render_image_with_vision(
                     rendered_img, get_fly_vision(fly), obs["odor_intensity"],
@@ -94,6 +95,7 @@ def run_simulation(
             rendered_img = cv2.cvtColor(rendered_img, cv2.COLOR_BGR2RGB)
             cv2.imshow("Simulation", rendered_img)
             cv2.waitKey(1)
+
         if controller.done_level(obs):
             # finish the path integration level
             break
@@ -108,7 +110,7 @@ def run_simulation(
         if "raw_vision" in info:
             del info["raw_vision"]
         
-        if save_plot:
+        if save_plot or generate_trajectories:
             obs_hist.append(obs_)
         #info_hist.append(info)
 
@@ -120,8 +122,8 @@ def run_simulation(
             break
 
         # TODO test proprioception 
-        if i > int(max_steps*4/5):
-            obs['reached_odour'] = True
+        # if i > int(max_steps*4/5):
+        #     obs['reached_odour'] = True
         
 
     if save_video: # Save video
@@ -132,7 +134,12 @@ def run_simulation(
         save_path = Path(output_dir) / f"level{level}_seed{seed}_iter{max_steps}.png"
         save_path.parent.mkdir(parents=True, exist_ok=True)
         plot_trajectory(save_path, obs_hist, level_arena.obstacle_positions, level_arena.odor_source, level_arena.obstacle_radius, level_arena.odor_dim)
-
+    if generate_trajectories:
+        from submission.tests import save_trajectories_for_path_integration_model
+        x = [obs["debug_fly"][0][0] for obs in obs_hist]
+        y = [obs["debug_fly"][0][1] for obs in obs_hist]
+        heading = [obs['heading'] for obs in obs_hist]
+        save_trajectories_for_path_integration_model(x_true = x, y_true = y, heading_true= heading, seed = seed)
 
     
 
@@ -181,6 +188,12 @@ if __name__ == "__main__":
         default=True,
     )
     parser.add_argument(
+        "--gen_trajectories",
+        action="store_true",
+        help="Generate trajectories for path integration model.",
+        default=False,
+    )
+    parser.add_argument(
         "--savevid",
         action="store_true",
         help="Save the video at the end of the simulation.",
@@ -193,14 +206,36 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.saveplot:
         args.debug = True
-    run_simulation(
-        submission_dir=args.submission_dir,
-        level=args.level,
-        seed=args.seed,
-        debug=args.debug,
-        output_dir=args.output_dir,
-        max_steps=args.max_steps,
-        progress=args.progress,
-        save_video=args.savevid,
-        save_plot=args.saveplot,
-    )
+
+
+    if not args.gen_trajectories:
+        run_simulation(
+            submission_dir=args.submission_dir,
+            level=args.level,
+            seed=args.seed,
+            debug=args.debug,
+            output_dir=args.output_dir,
+            max_steps=args.max_steps,
+            progress=args.progress,
+            save_video=args.savevid,
+            save_plot=args.saveplot,
+        )
+    else: 
+        import numpy as np
+        TRAJECTORY_PATH = Path('outputs/trajectories')
+        TRAJECTORY_PATH.mkdir(parents=True, exist_ok=True)
+
+        for seed in np.random.randint(0, 100, 3):
+            print('\n\n Seed : ', seed)
+            run_simulation(
+                submission_dir=args.submission_dir,
+                level=args.level,
+                seed=seed,
+                debug=args.debug,
+                output_dir=TRAJECTORY_PATH,
+                max_steps=args.max_steps,
+                progress=args.progress,
+                save_video=args.savevid,
+                save_plot=args.saveplot,
+                generate_trajectories=args.gen_trajectories,
+            )

@@ -11,14 +11,16 @@ from .olfaction import compute_olfaction_turn_bias, compute_stationary_olfaction
 from .pillar_avoidance import compute_pillar_avoidance
 from .ball_avoidance import is_ball
 from .proprioception import predict_roll_change, get_stride_length_instantaneous, extract_proprioceptive_variables_from_stride
-from .tests import test_heading, test_proprio
+from .tests import test_heading, test_proprio, save_trajectories_for_path_integration_model
+from .proprioception import get_stride_length
 
 TEST_PATH = Path('outputs/test_heading')
 TEST_PATH.mkdir(parents=True, exist_ok=True)
 
-#python run_simulation.py --level 1 --output-dir outputs/test_heading --saveplot --max-steps 2000
-#python run_simulation.py --level 0 --max-steps 2000
-#python3 run_simulation.py --level 0 --max-steps 2000
+# python run_simulation.py --level 4 --gen_trajectories --savevid --saveplot --max-steps 30000
+# python run_simulation.py --level 2 --output-dir outputs/test_heading --saveplot --max-steps 2000
+# python run_simulation.py --level 0 --max-steps 2000
+# python3 run_simulation.py --level 0 --max-steps 2000
 
 class Controller(BaseController):
     def __init__(
@@ -29,6 +31,7 @@ class Controller(BaseController):
         weight_pillar_avoidance=0.5, # ideas : weight dependent on intensity (love blindness), internal states
         obj_threshold=0.3, # threshold for object detection 
         ball_threshold=0.01, # threshold for ball detection
+        seed_sim = 0,
     ):
         from flygym.examples.locomotion import PreprogrammedSteps
 
@@ -66,10 +69,12 @@ class Controller(BaseController):
         self.last_end_effector_pos = None
         self.displacement_x = np.array([])
         self.displacement_y = np.array([])
-
+        self.stride_lengths = []
         self.tests_counter = 0
+        self.seed_sim = seed_sim
 
         self.fly_roll_hist = [] # TODO remove when finished testing 
+
         
 
     def _process_visual_observation(self, raw_obs):
@@ -119,8 +124,7 @@ class Controller(BaseController):
 
         return proprio_heading_pred, proprio_distance_pred
 
-    def get_actions(self, obs):
-
+    def get_actions(self, obs, generate_trajectories=False):
         visual_features, rgb_features = self._process_visual_observation(obs)
 
         ball_alert = is_ball(rgb_features, self.ball_threshold)
@@ -170,7 +174,7 @@ class Controller(BaseController):
             if self.counter_vision_buffer >= self.vision_window_length: # append only every vision_window_length steps
                 self.counter_vision_buffer = 0
                 self._update_internal_heading(obs)
-                # self.fly_roll_hist.append(self.path_int_buffer[-1]["heading"])
+                self.fly_roll_hist.append(self.path_int_buffer[-1]["heading"])
 
         # _____________________________________
         # Proprioceptive-based path integration
@@ -178,14 +182,14 @@ class Controller(BaseController):
         # compute stride length at each step
         stride_length, self.last_end_effector_pos = get_stride_length_instantaneous(obs["end_effectors"], self.last_end_effector_pos)
         self.path_int_buffer.append({'velocity': obs['velocity'], 'heading' : obs["heading"], 'contact_forces': obs['contact_forces'], 'stride_length' : stride_length, 'end_effectors' : obs["end_effectors"]}) # TODO maybe remove heading if computed differently
-
+        self.stride_lengths.append(stride_length)
         version_window = False
 
         if version_window:
             if len(self.path_int_buffer) >= 2 * self.proprio_window_length: # update proprioceptive 
                 proprio_heading_pred, proprio_distance_pred = self._compute_proprioceptive_variables()
                 headings_obs = np.array([obs['heading'] for obs in self.path_int_buffer])
-                np.save(TEST_PATH / 'headings_obs.npy', headings_obs)
+                # np.save(TEST_PATH / 'headings_obs.npy', headings_obs)
                 headings_obs = np.unwrap(headings_obs, discont=np.pi)
                 displacement_diff_x_pred = np.cos(headings_obs) * proprio_distance_pred
                 displacement_diff_y_pred = np.sin(headings_obs) * proprio_distance_pred
@@ -199,27 +203,28 @@ class Controller(BaseController):
                 # dt = 1
                 # self.position += speed * heading_vector * dt  # update position in world space
 
-
+    
         if obs.get('reached_odour', False): # finished level -> return home
             print("Odour detected")
  
             # TEST ############################
             if not version_window:
-                from .proprioception import get_stride_length
-                end_effectors = np.array([step['end_effectors'] for step in self.path_int_buffer])
+                # end_effectors = np.array([step['end_effectors'] for step in self.path_int_buffer])
                 contact_forces = np.array([step['contact_forces'] for step in self.path_int_buffer])
                 heading = np.array([step['heading'] for step in self.path_int_buffer])
                 heading = np.unwrap(heading, discont=np.pi)
 
-                stride_length = get_stride_length(end_effectors)
-                
+                stride_length = np.array(self.stride_lengths)
 
-                _, stride_length_sum = extract_proprioceptive_variables_from_stride(
+                proprioceptive_heading_pred, proprioceptive_dist_pred = extract_proprioceptive_variables_from_stride(
                     stride_length, contact_forces, window_len=self.proprio_window_length
                 )
+                if generate_trajectories:
+                    save_trajectories_for_path_integration_model(distance_pred = proprioceptive_dist_pred, heading_pred_optic = self.heading_angles, heading_pred= proprioceptive_heading_pred, seed=self.seed_sim, fly_roll=self.fly_roll_hist)
+            
 
                 # Integrate displacement
-                displacement_diff_pred = stride_length_sum
+                displacement_diff_pred = proprioceptive_dist_pred
 
                 heading = heading[:displacement_diff_pred.shape[0]]
                 displacement_diff_x_pred = displacement_diff_pred * np.cos(heading)
@@ -232,8 +237,9 @@ class Controller(BaseController):
             pos_y_pred = np.cumsum(self.displacement_y / self.proprio_window_length)
             pos_pred = np.stack([pos_x_pred, pos_y_pred], axis=1)
             pos_pred = np.concatenate([np.full((self.proprio_window_length, 2), np.nan), pos_pred], axis=0) # pad with nan before the first window
+
             
-            test_proprio(100, None, None, pos_pred[:,0],  pos_pred[:, 1])
+            # test_proprio(100, None, None, pos_pred[:,0],  pos_pred[:, 1]) # to save the variables to memory
 
 
             # return_vector = pos_pred[-1] - pos_pred[0] # vector from start to end of the path

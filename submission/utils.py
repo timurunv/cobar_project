@@ -89,8 +89,7 @@ def plot_trajectory(savepath, obs, obstacle_poz, odor_poz, obstacle_size = 2, od
     plt.figure(figsize=(6,6), dpi=150)
     x = [observation["debug_fly"][0][0] for observation in obs]
     y = [observation["debug_fly"][0][1] for observation in obs]
-    np.save(os.path.dirname(savepath) + '\\x.npy', x)
-    np.save(os.path.dirname(savepath) + '\\y.npy', y)
+    
     plt.plot(x, y, label="Fly trajectory")
     if obstacle_poz.size !=0 : # if not empty
         plt.plot([op[0] for op in obstacle_poz], [op[1] for op in obstacle_poz], 'ko', markersize=obstacle_size*2, label='Obstacles')

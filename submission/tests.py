@@ -3,8 +3,8 @@ import numpy as np
 import os
 BASE_DIR = Path.cwd()
 TEST_PATH = BASE_DIR / 'outputs' /'test_distance' # test_heading
-
 TEST_PATH.mkdir(parents=True, exist_ok=True)
+TRAJECTORY_PATH = Path('outputs/trajectories')
 
 def test_heading(counter, obs, obs_vision, fly_roll_hist, estimated_orient_change, debug=False):
     # see jupyter notebook outputs/tests/test_heading.ipynb for the file where this is used
@@ -32,3 +32,21 @@ def test_proprio(counter, proprio_heading_pred, proprio_distance_pred, pos_x,pos
             np.save(TEST_PATH / f'pos_x.npy', pos_x)
         if pos_y is not None:
             np.save(TEST_PATH / f'pos_y.npy', pos_y)
+
+
+
+def save_trajectories_for_path_integration_model(distance_pred=None, heading_pred_optic=None, heading_pred=None, x_true=None, y_true=None, heading_true=None, fly_roll = None, seed = None):
+    if distance_pred is not None:
+        np.save(TRAJECTORY_PATH / f'pred_distance_{seed}.npy', distance_pred)
+    if heading_pred_optic is not None:
+        np.save(TRAJECTORY_PATH / f'pred_headingoptic_{seed}.npy', heading_pred_optic)
+    if heading_pred is not None:
+        np.save(TRAJECTORY_PATH / f'pred_heading_{seed}.npy', heading_pred)
+    if x_true is not None:
+        np.save(TRAJECTORY_PATH / f'true_x_{seed}.npy', x_true)
+    if y_true is not None:
+        np.save(TRAJECTORY_PATH / f'true_y_{seed}.npy', y_true)
+    if heading_true is not None:
+        np.save(TRAJECTORY_PATH / f'true_heading_{seed}.npy', heading_true)
+    if fly_roll is not None:
+        np.save(TRAJECTORY_PATH / f'fly_roll_{seed}.npy', fly_roll)
