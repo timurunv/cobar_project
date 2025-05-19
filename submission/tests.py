@@ -35,11 +35,9 @@ def test_proprio(counter, proprio_heading_pred, proprio_distance_pred, pos_x,pos
 
 
 
-def save_trajectories_for_path_integration_model(distance_pred=None, heading_pred_optic=None, heading_pred=None, x_true=None, y_true=None, heading_true=None, fly_roll = None, seed = None):
+def save_trajectories_for_path_integration_model(distance_pred=None, heading_pred_optic=None, heading_pred=None, x_true=None, y_true=None, heading_true=None, fly_roll = None, seed = None, velocity=None):
     if distance_pred is not None:
         np.save(TRAJECTORY_PATH / f'pred_distance_{seed}.npy', distance_pred)
-    if heading_pred_optic is not None:
-        np.save(TRAJECTORY_PATH / f'pred_headingoptic_{seed}.npy', heading_pred_optic)
     if heading_pred is not None:
         np.save(TRAJECTORY_PATH / f'pred_heading_{seed}.npy', heading_pred)
     if x_true is not None:
@@ -48,5 +46,9 @@ def save_trajectories_for_path_integration_model(distance_pred=None, heading_pre
         np.save(TRAJECTORY_PATH / f'true_y_{seed}.npy', y_true)
     if heading_true is not None:
         np.save(TRAJECTORY_PATH / f'true_heading_{seed}.npy', heading_true)
+    if heading_pred_optic is not None:
+        np.save(TRAJECTORY_PATH / f'pred_headingoptic_{seed}.npy', heading_pred_optic)
     if fly_roll is not None:
-        np.save(TRAJECTORY_PATH / f'fly_roll_{seed}.npy', fly_roll)
+        np.save(TRAJECTORY_PATH / f'true_roll_{seed}.npy', fly_roll)
+    if velocity is not None:
+        np.save(TRAJECTORY_PATH / f'true_velocity_{seed}.npy', velocity)

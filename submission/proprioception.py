@@ -1,59 +1,22 @@
 import numpy as np
 from .utils import compute_optic_flow, prepare_fly_vision
+import json
+import numpy as np
 
 # various functions adapted from the exercise session to compute proprioceptive variables 
 
-def predict_roll_change(vision_buffer:list, n_top_pixels=5):
+def predict_roll_change(vision_buffer:list, n_top_pixels=8):
+    post_img = prepare_fly_vision(vision_buffer[-1], n_top_pixels=n_top_pixels)
     pre_img = prepare_fly_vision(vision_buffer[0], n_top_pixels=n_top_pixels)
-    post_img = prepare_fly_vision(vision_buffer[1], n_top_pixels=n_top_pixels)
+    
     flow = compute_optic_flow(pre_img, post_img)
+
+    # calculate the mean optic flow vector in the x direction
     mean_x_flow = np.mean(flow[..., 0])
     return mean_x_flow
 
 
-def absolute_to_relative_pos( # NOT USED
-        pos: np.ndarray, base_pos: np.ndarray, heading: np.ndarray
-    ) -> np.ndarray:
-    """
-    This function converts an absolute position to a relative position
-    with respect to a base position and heading of the fly.
-
-    It will be used to obtain the flycentric end-effector (leg tip) positions.
-    """
-
-    rel_pos = pos - base_pos
-    heading = heading / np.linalg.norm(heading)
-    angle = np.arctan2(heading[1], heading[0])
-    rot_matrix = np.array([[np.cos(-angle), -np.sin(-angle)], [np.sin(-angle), np.cos(-angle)]])
-    pos_rotated = np.dot(rel_pos, rot_matrix.T)
-    return pos_rotated
-
-
-def get_stride_length(end_effector_pos):
-    """
-    This function calculates the stride length of the fly by calculating the difference in the end effector position
-    of the fly between two consecutive proprioceptive time steps. 
-
-    In this function the end_effector_pos is already in flycentric coordinates.
-    The stride length is calculated as the difference in the end effector position between two consecutive time steps
-    in the flycentric coordinate system.
-    """
-    last_end_effector_pos = None
-    stride_length = []
-    
-    for i in range(end_effector_pos.shape[0]):
-        pos = end_effector_pos[i,:,:]
-        if last_end_effector_pos is None:
-            ee_diff = np.zeros_like(pos)
-        else:
-            ee_diff = pos - last_end_effector_pos
-        last_end_effector_pos = pos
-        
-        stride_length.append(ee_diff)
-
-    return np.array(stride_length)
-
-def get_stride_length_instantaneous(end_effector_pos, last_end_effector_pos = None):
+def get_stride_length(end_effector_pos, heading, last_end_effector_pos = None):
     """
     This function calculates the stride length of the fly by computing the difference in the end effector 
     position between two consecutive time steps in the flycentric coordinate system.
@@ -65,6 +28,9 @@ def get_stride_length_instantaneous(end_effector_pos, last_end_effector_pos = No
     if last_end_effector_pos is None:
         ee_diff = np.zeros_like(end_effector_pos)
     else:
+        #project on the heading direction
+        # rot_matrix = np.array([[np.cos(-heading), -np.sin(-heading)], [np.sin(-heading), np.cos(-heading)]])
+        # end_effector_pos_rotated = np.dot(end_effector_pos, rot_matrix.T)
         ee_diff = end_effector_pos - last_end_effector_pos
     last_end_effector_pos = end_effector_pos
     return ee_diff, last_end_effector_pos
@@ -96,6 +62,7 @@ def extract_proprioceptive_variables_from_stride(stride_length: np.array, contac
 
     stride_total_left = np.cumsum(stride_left, axis=0)
     stride_total_right = np.cumsum(stride_right, axis=0)
+
     # Calculate difference in Σstride over proprioceptive time window (ΔΣstride) (window_len,)
     stride_total_diff_left = stride_total_left[window_len:] - stride_total_left[:-window_len]
     stride_total_diff_right = stride_total_right[window_len:] - stride_total_right[:-window_len]
@@ -106,3 +73,79 @@ def extract_proprioceptive_variables_from_stride(stride_length: np.array, contac
     
     return proprioceptive_heading_pred, proprioceptive_distance_pred
 
+
+def load_proprioceptive_models():
+    import os
+    path_proprio = os.path.join(os.getcwd(), 'submission', 'proprioceptive_models.json')
+    path_heading = os.path.join(os.getcwd(), 'submission', 'heading_models.json')
+    # Load from JSON
+    with open(path_proprio, 'r') as f:
+        models_data = json.load(f)
+
+    # Reconstruct poly1d models
+    prop_heading_model = np.poly1d([
+        models_data['prop_heading_model']['slope'],
+        models_data['prop_heading_model']['intercept']
+    ])
+
+    prop_disp_model = np.poly1d([
+        models_data['prop_disp_model']['slope'],
+        models_data['prop_disp_model']['intercept']
+    ])
+
+    optic_heading_model = np.poly1d([
+        models_data['heading_flow_model']['slope'],
+        models_data['heading_flow_model']['intercept']
+    ])
+
+    optic_proprio_heading_model = np.poly1d([   
+        models_data['heading_flow_model_multivar']['slope'],
+        models_data['heading_flow_model_multivar']['intercept']
+    ])
+
+
+    return prop_heading_model, prop_disp_model, optic_heading_model
+
+
+def absolute_to_relative_pos( # NOT USED
+        pos: np.ndarray, base_pos: np.ndarray, heading: np.ndarray
+    ) -> np.ndarray:
+    """
+    This function converts an absolute position to a relative position
+    with respect to a base position and heading of the fly.
+
+    It will be used to obtain the flycentric end-effector (leg tip) positions.
+    """
+
+    rel_pos = pos - base_pos
+    heading = heading / np.linalg.norm(heading)
+    angle = np.arctan2(heading[1], heading[0])
+    rot_matrix = np.array([[np.cos(-angle), -np.sin(-angle)], [np.sin(-angle), np.cos(-angle)]])
+    pos_rotated = np.dot(rel_pos, rot_matrix.T)
+    return pos_rotated
+
+
+
+def get_stride_lengths(end_effector_pos):
+    """
+    This function calculates the stride length of the fly by calculating the difference in the end effector position
+    of the fly between two consecutive proprioceptive time steps. 
+
+    In this function the end_effector_pos is already in flycentric coordinates.
+    The stride length is calculated as the difference in the end effector position between two consecutive time steps
+    in the flycentric coordinate system.
+    """
+    last_end_effector_pos = None
+    stride_length = []
+    
+    for i in range(end_effector_pos.shape[0]):
+        pos = end_effector_pos[i,:,:]
+        if last_end_effector_pos is None:
+            ee_diff = np.zeros_like(pos)
+        else:
+            ee_diff = pos - last_end_effector_pos
+        last_end_effector_pos = pos
+        
+        stride_length.append(ee_diff)
+
+    return np.array(stride_length)
