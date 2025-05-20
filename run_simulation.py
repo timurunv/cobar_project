@@ -77,12 +77,13 @@ def run_simulation(
     else:
         step_range = range(max_steps)
 
+    counter = 0
     for i in step_range:
         # Get observations
         obs, reward, terminated, truncated, info = sim.step(controller.get_actions(obs))
         rendered_img = sim.render()[0]
         RENDER_TYPE = "RAW_VISION"
-        if rendered_img is not None:
+        if False: # rendered_img is not None:
             if RENDER_TYPE == "RAW_VISION":
                 rendered_img = render_image_with_vision(
                     rendered_img, get_fly_vision(fly), obs["odor_intensity"],
@@ -98,13 +99,19 @@ def run_simulation(
             # finish the path integration level
             break
 
-        if not obs["vision_updated"]: # to save memory
-            if "vision" in obs:
-                del obs["vision"]
-        if "raw_vision" in obs:
-            del obs["raw_vision"]
-        obs_hist.append(obs)
+        obs_ = obs.copy()
+        if not obs_["vision_updated"]: # to save memory
+            if "vision" in obs_:
+                del obs_["vision"]
+        if "raw_vision" in obs_:
+            del obs_["raw_vision"]
+        obs_hist.append(obs_)
         #info_hist.append(info)
+        if obs.get("reached_odour", False):
+            counter += 1
+        
+        if counter == 500:
+            controller.quit =  True
 
         if hasattr(controller, "quit") and controller.quit:
             print("Simulation terminated by user.")
@@ -112,6 +119,10 @@ def run_simulation(
         if hasattr(level_arena, "quit") and level_arena.quit:
             print("Target reached. Simulation terminated.")
             break
+        if i > 2000: 
+            obs['reached_odour'] = True
+        
+        
 
     if save_video: # Save video
         save_path = Path(output_dir) / f"level{level}_seed{seed}_iter{max_steps}.mp4"

@@ -7,8 +7,10 @@ from .ball_avoidance import is_ball
 from flygym.vision.retina import Retina
 from pathlib import Path
 from scipy.ndimage import gaussian_filter1d
+import math
 #python run_simulation.py --level 0 --max-steps 2000
 #python3 run_simulation.py --level 0 --max-steps 2000
+#python3 run_simulation.py --level 4 --max-steps 30000 --saveplot --savevid --seed 19
 
 class Controller(BaseController):
     def __init__(
@@ -41,6 +43,10 @@ class Controller(BaseController):
         self.velocities = []
         self.counter = 0
         self.going_backward = False
+        self.init_rotation_angle = True
+        self.remaining_rotation = 0
+        self.alpha_heading = 0
+        self.distance_to_cover = 0
 
     def _process_visual_observation(self, raw_obs):
         features = np.zeros((2, 3))
@@ -62,42 +68,83 @@ class Controller(BaseController):
 
 
     def get_actions(self, obs):
-
         #Vision
+        
         self.counter = self.counter + 1
         visual_features, rgb_features = self._process_visual_observation(obs)
-
         ball_alert = is_ball(rgb_features, self.ball_threshold)
         
-        if ball_alert:
-            self.action = np.zeros((2,)) #stop moving
-        else:
-            #Pillar avoidance
-            self.action, object_detected = compute_pillar_avoidance(visual_features)
-            if self.action[0] == self.action[1] and object_detected:
-                self.action = compute_stationary_olfaction_bias(obs)   
+        if(not(obs.get("reached_odour", False))): 
+            if ball_alert:
+                self.action = np.zeros((2,)) #stop moving
+            else:
+                #Pillar avoidance
+                self.action, object_detected = compute_pillar_avoidance(visual_features)
+                if self.action[0] == self.action[1] and object_detected:
+                    self.action = compute_stationary_olfaction_bias(obs)   
 
-            #Olfaction (only if no object or ball detected)
-            if not object_detected:
-                self.action = np.ones((2,)) + compute_olfaction_turn_bias(obs)
-                
-            if self.counter > 2000 :
-                if self.counter % 5  == 0:
-                    self.velocities.append(obs['velocity'])
+                #Olfaction (only if no object or ball detected)
+                if not object_detected:
+                    self.action = np.ones((2,)) + compute_olfaction_turn_bias(obs)
                     
-                if self.counter % 1000 == 0 :
-                    velocities_array = np.array([np.array(v) for v in self.velocities])
-                    smoothed_velocity = gaussian_filter1d(velocities_array[:,0], sigma=15) #take forward velocity component
-                    avrg_velocity = np.mean(smoothed_velocity)
-                    if avrg_velocity < 5 and avrg_velocity > -5:
-                        self.going_backward = True
-                    else : 
-                        self.going_backward = False
+                if self.counter > 2000 :
+                    if self.counter % 5  == 0:
+                        self.velocities.append(obs['velocity'])
                         
-                    self.velocities = []
-                if self.going_backward : 
-                    self.action = np.array([-1.0, -1.0])
+                    if self.counter % 1000 == 0 :
+                        velocities_array = np.array([np.array(v) for v in self.velocities])
+                        smoothed_velocity = gaussian_filter1d(velocities_array[:,0], sigma=15) #take forward velocity component
+                        avrg_velocity = np.mean(smoothed_velocity)
+                        if avrg_velocity < 5 and avrg_velocity > -5:
+                            self.going_backward = True
+                        else : 
+                            self.going_backward = False
+                            
+                        self.velocities = []
+                    if self.going_backward : 
+                        self.action = np.array([-1.0, -1.0])
+            
+        else:
+            print("reached odor, going back to la casa")
+            if(self.init_rotation_angle): 
+                print("tqt je prédis ta mère")
                 
+                x_pred = 234
+                y_pred = 554
+                self.distance_to_cover = np.sqrt(x_pred**2 + y_pred**2)
+                alpha = np.arctan(y_pred/x_pred)
+                self.alpha_heading = obs["heading"]
+                
+                print(self.alpha_heading, "alpha heading")
+                print(alpha, "alpha")
+                self.remaining_rotation = math.radians(180) - self.alpha_heading + alpha
+                self.init_rotation_angle = False
+                
+            else :  
+                print("je print ta mere en scred boucle")
+                angle_change_per_iter = obs["heading"]-self.alpha_heading
+                self.remaining_rotation -= angle_change_per_iter
+                self.alpha_heading = obs["heading"]
+                print(self.remaining_rotation, "remaining rotation")
+                print(self.alpha_heading, "alpha heading")
+                print(angle_change_per_iter, "change per iter")
+                #reached odour and have to come back home 
+                
+                if(self.remaining_rotation < 0.01): 
+                    print("ta mere elle a fini de tourner")
+                    dt_per_step = 1e-4
+                    instantaneous_speed = obs['velocity']
+                    dx_per_step = instantaneous_speed*dt_per_step
+                    self.distance_to_cover -= dx_per_step
+                    if(self.distance_to_cover < 0.001): 
+                        self.quit = True
+                    self.action = np.array([1.0, 1.0])
+                    #need to see how compute the distance
+                
+                else : 
+                    self.action = np.array([-1.0, 1.0]) * self.remaining_rotation / 180
+                    
+                    
         
         joint_angles, adhesion = step_cpg(
             cpg_network=self.cpg_network,
