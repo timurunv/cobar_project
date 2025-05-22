@@ -1,0 +1,13 @@
+{
+    "heading_flow_model": {
+        "slope": 0.05837757423565551,
+        "intercept": -0.13957876117401163
+    },
+    "heading_flow_model_multivar": {
+        "slopes": [
+            0.05331619368404719,
+            -0.25204409657290844
+        ],
+        "intercept": -0.10634939471595928
+    }
+}

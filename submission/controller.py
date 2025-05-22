@@ -70,7 +70,7 @@ class Controller(BaseController):
         self.pos_x = None
         self.pos_y = None
         self.stride_lengths = []
-        self.prop_heading_model, self.prop_disp_model, self.optic_heading_model = load_proprioceptive_models()
+        self.prop_heading_model, self.prop_disp_model, self.optic_heading_model, self.velocity_model = load_proprioceptive_models()
 
         self.seed_sim = seed_sim
         self.tests_counter = 0
@@ -124,6 +124,7 @@ class Controller(BaseController):
         del self.path_int_buffer[:self.proprio_window_length]
 
         return proprio_heading_pred, proprio_distance_pred
+
 
     def get_actions(self, obs, generate_trajectories=False):
 
@@ -207,26 +208,22 @@ class Controller(BaseController):
                     velocity = velocities, drives = drives)
                 print('true displacement', true_x[-1], true_y[-1], 'heading', true_heading[-1])
 
-            # Integrate displacement
-            displacement_diff_pred = self.prop_disp_model(proprioceptive_dist_pred)
-            optic_heading_pred = self.optic_heading_model.predict(np.array(self.heading_preds_optic).reshape(-1, 1)) 
-            #self.prop_heading_model(proprioceptive_heading_pred)
-            # heading_pred = np.cumsum(heading_diff_pred / self.proprio_window_length)
+            heading_final = self.create_heading_final(proprioceptive_heading_pred, self.heading_preds_optic)
+            
+            velocity_x = None
+            if velocity_x is None:
+                heading_final = heading_final[self.proprio_window_length:] # remove first proprioceptive window since velocity not accurate in the displacement prediction
+            disp_final = self.create_displacement_final(proprioceptive_dist_pred, velocities=velocity_x)
 
-            # TODO improve this simplification - going in a straight line
-            n_chunks = int(np.ceil(len(displacement_diff_pred) / 100))
-            displacement_diff_pred_subsampled = np.cumsum(np.array([ displacement_diff_pred[i*100 : (i+1)*100].sum() for i in range(n_chunks) ]))
-
-            displacement_diff_x_pred = displacement_diff_pred_subsampled * np.cos(optic_heading_pred)
-            displacement_diff_y_pred = displacement_diff_pred_subsampled * np.sin(optic_heading_pred)
-            print('predicted displacement (x,y) :', displacement_diff_x_pred[-1], displacement_diff_y_pred[-1], '; predicted heading : ',  self.heading_preds_optic[-1])
+            displacement_diff_x_pred = disp_final.flatten() * np.cos(heading_final).flatten()
+            displacement_diff_y_pred = disp_final.flatten() * np.sin(heading_final).flatten()
 
             pos_x_pred = np.cumsum(displacement_diff_x_pred / self.proprio_window_length)
             pos_y_pred = np.cumsum(displacement_diff_y_pred / self.proprio_window_length)
-            pos_pred = np.stack([pos_x_pred, pos_y_pred], axis=1)
-            pos_pred = np.concatenate([np.full((self.proprio_window_length, 2), np.nan), pos_pred], axis=0) # pad with nan before the first window
+            
             self.pos_x = pos_x_pred[-1]
             self.pos_y = pos_y_pred[-1]
+            print('pos_x_pred', pos_x_pred[-1], 'pos_y_pred', pos_y_pred[-1])
         
             self.quit = True
         
@@ -250,3 +247,81 @@ class Controller(BaseController):
 
     def reset(self, **kwargs):
         self.cpg_network.reset()
+
+
+
+    def create_heading_final(self, proprioceptive_heading_pred, optic_heading_pred, optic_window = 100):
+        """
+        This function creates the final heading signal by combining the proprioceptive and optic flow signals.
+        It uses the proprioceptive heading signal to fill in the gaps between optic flow updates.
+        In the first self.proprio_window_length steps, it uses the optic flow signal only, as a step function.
+
+        Parameters
+        ----------
+        proprioceptive_heading_pred : np.array
+            The proprioceptive heading signal.
+        optic_heading_pred : np.array
+            The optic flow heading signal.
+        optic_window : int
+            The number of steps between optic flow updates (ie vision updated).
+        """
+        N = len(proprioceptive_heading_pred) + self.proprio_window_length
+        heading_final = np.zeros(N)
+        optic_indices = np.arange(0, N, optic_window)
+        
+        proprio_heading = self.prop_heading_model(np.array(proprioceptive_heading_pred).reshape(-1, 1)).flatten()
+        # fill with zeros the first proprioceptive window so that later the delta is correct
+        proprio_heading = np.concatenate([np.full((self.proprio_window_length), 0), proprio_heading], axis=0)/ self.proprio_window_length
+
+        optic_headings_corrected = self.optic_heading_model.predict(np.array(optic_heading_pred).reshape(-1, 1)).flatten()
+        
+        for i, idx in enumerate(optic_indices): # every optic window set value to optic heading
+            heading_final[idx] = optic_headings_corrected[i]
+
+        # Fill in the initial proprioceptive window using optic flow only 
+        for i in range(0, self.proprio_window_length - optic_window, optic_window):
+            # carry forward last optic value (step-wise fill)
+            for j in range(i + 1, i + optic_window):
+                heading_final[j] = heading_final[j - 1]
+
+        # Between optic updates use the proprioceptive heading
+        for i in range(len(optic_indices) - 1):
+            for j in range(optic_indices[i] + 1, optic_indices[i + 1]):
+                heading_final[j] = heading_final[j - 1] + proprio_heading[j]
+
+        # Handle the final segment after the last optic update
+        for j in range(optic_indices[-1] + 1, N):
+            heading_final[j] = heading_final[j - 1] + proprio_heading[j]
+            
+        return heading_final
+
+    def create_displacement_final(self, proprioceptive_dist_pred, velocities):
+        """
+        This function creates the final displacement signal by combining the proprioceptive and velocity signals.
+        It uses the velocity signal to fill the first proprioceptive window.
+        Params
+        ----------
+        proprioceptive_dist_pred : np.array
+            The proprioceptive distance signal.
+        velocities : np.array
+            The velocity signal.
+        """
+        if velocities is None: # do not use velocity
+            additonal = 0
+            N = len(proprioceptive_dist_pred)
+            disp_final = np.zeros(N)
+        else:
+            additonal= self.proprio_window_length
+            N = len(proprioceptive_dist_pred) + additonal
+            disp_final = np.zeros(N)
+            
+
+            # Velocity for the first proprioceptive window
+            smoothed_velocity = gaussian_filter1d(velocities, sigma=20)
+            disp_pred_velocity = self.velocity_model.predict(np.array(smoothed_velocity).reshape(-1, 1)).flatten()
+            disp_final[:self.proprio_window_length] = disp_pred_velocity[:self.proprio_window_length]
+
+        proprio_disp_pred = self.prop_disp_model(proprioceptive_dist_pred)
+        disp_final[additonal:] = proprio_disp_pred
+
+        return disp_final
