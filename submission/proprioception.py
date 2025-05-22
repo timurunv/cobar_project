@@ -2,6 +2,7 @@ import numpy as np
 from .utils import compute_optic_flow, prepare_fly_vision
 import json
 import numpy as np
+from sklearn.linear_model import LinearRegression
 
 # various functions adapted from the exercise session to compute proprioceptive variables 
 
@@ -77,8 +78,7 @@ def extract_proprioceptive_variables_from_stride(stride_length: np.array, contac
 def load_proprioceptive_models():
     import os
     path_proprio = os.path.join(os.getcwd(), 'submission', 'proprioceptive_models.json')
-    path_heading = os.path.join(os.getcwd(), 'submission', 'heading_models.json')
-    # Load from JSON
+
     with open(path_proprio, 'r') as f:
         models_data = json.load(f)
 
@@ -93,18 +93,25 @@ def load_proprioceptive_models():
         models_data['prop_disp_model']['intercept']
     ])
 
-    optic_heading_model = np.poly1d([
-        models_data['heading_flow_model']['slope'],
-        models_data['heading_flow_model']['intercept']
-    ])
 
-    optic_proprio_heading_model = np.poly1d([   
-        models_data['heading_flow_model_multivar']['slope'],
-        models_data['heading_flow_model_multivar']['intercept']
-    ])
+    path_heading = os.path.join(os.getcwd(), 'submission', 'heading_models.json')
+    with open(path_heading, 'r') as f:
+        heading_models_data = json.load(f)
+    
+    heading_flow_model_univariate = LinearRegression()
+    heading_flow_model_univariate.coef_ = np.array([[heading_models_data['heading_flow_model']['slope']]])
+    heading_flow_model_univariate.intercept_ = np.array([heading_models_data['heading_flow_model']['intercept']])
+    heading_flow_model_univariate._residues = None
+    heading_flow_model_univariate.n_features_in_ = 1
+
+    # Multivariate model
+    # heading_flow_model.coef_ = np.array([[heading_models_data['heading_flow_model']['slopes']]])
+    # heading_flow_model.intercept_ = np.array([heading_models_data['heading_flow_model']['intercept']])
+    # heading_flow_model._residues = None  # Legacy, not needed usually
+    # heading_flow_model_multivar.n_features_in_ = 2
 
 
-    return prop_heading_model, prop_disp_model, optic_heading_model
+    return prop_heading_model, prop_disp_model, heading_flow_model_univariate
 
 
 def absolute_to_relative_pos( # NOT USED

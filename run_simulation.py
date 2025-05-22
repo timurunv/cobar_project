@@ -18,7 +18,6 @@ from submission.utils import plot_trajectory
 from matplotlib import pyplot as plt
 import cv2
 
-
 def run_simulation(
     submission_dir,
     level,
@@ -83,7 +82,7 @@ def run_simulation(
         obs, reward, terminated, truncated, info = sim.step(controller.get_actions(obs, generate_trajectories=generate_trajectories))
         rendered_img = sim.render()[0]
         RENDER_TYPE = "RAW_VISION"
-        if False: #rendered_img is not None:
+        if False : #rendered_img is not None:
             if RENDER_TYPE == "RAW_VISION":
                 rendered_img = render_image_with_vision(
                     rendered_img, get_fly_vision(fly), obs["odor_intensity"],
@@ -110,9 +109,9 @@ def run_simulation(
         if "raw_vision" in info:
             del info["raw_vision"]
         
-        if save_plot or generate_trajectories:
+        if save_plot:
             obs_hist.append(obs_)
-        #info_hist.append(info)
+            #info_hist.append(info)
 
         if hasattr(controller, "quit") and controller.quit:
             print("Simulation terminated by user.")
@@ -123,7 +122,7 @@ def run_simulation(
 
         # TODO test proprioception 
         # if i > int(max_steps*4/5):
-        #     obs['reached_odour'] = True
+        #     obs['reached_odour']  = True
         
 
     if save_video: # Save video
@@ -134,12 +133,6 @@ def run_simulation(
         save_path = Path(output_dir) / f"level{level}_seed{seed}_iter{max_steps}.png"
         save_path.parent.mkdir(parents=True, exist_ok=True)
         plot_trajectory(save_path, obs_hist, level_arena.obstacle_positions, level_arena.odor_source, level_arena.obstacle_radius, level_arena.odor_dim)
-    if generate_trajectories:
-        from submission.tests import save_trajectories_for_path_integration_model
-        x = [obs["debug_fly"][0][0] for obs in obs_hist]
-        y = [obs["debug_fly"][0][1] for obs in obs_hist]
-        heading = [obs['heading'] for obs in obs_hist]
-        save_trajectories_for_path_integration_model(x_true = x, y_true = y, heading_true= heading, seed = seed)
 
     
 
@@ -224,14 +217,14 @@ if __name__ == "__main__":
         import numpy as np
         TRAJECTORY_PATH = Path('outputs/trajectories')
         TRAJECTORY_PATH.mkdir(parents=True, exist_ok=True)
-
-        for seed in np.random.randint(0, 100, 3):
+        n_seeds = 8
+        for seed in np.random.choice(100, size=n_seeds, replace=False):
             print('\n\n Seed : ', seed)
             run_simulation(
                 submission_dir=args.submission_dir,
                 level=args.level,
                 seed=seed,
-                debug=args.debug,
+                debug=True,
                 output_dir=TRAJECTORY_PATH,
                 max_steps=args.max_steps,
                 progress=args.progress,

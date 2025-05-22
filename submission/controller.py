@@ -107,7 +107,7 @@ class Controller(BaseController):
         # self.heading_preds_optic.extend([self.heading_angle] * (self.vision_window_length * vision_update_iters))
         self.heading_preds_optic.append(self.heading_angle)
 
-        # TEST
+        # TEST path integration
         self.fly_roll_hist.append(obs["heading"])
 
     def _compute_proprioceptive_variables(self):
@@ -129,12 +129,13 @@ class Controller(BaseController):
         return proprio_heading_pred, proprio_distance_pred
 
     def get_actions(self, obs, generate_trajectories=False):
+
         visual_features, rgb_features = self._process_visual_observation(obs)
 
         ball_alert = is_ball(rgb_features, self.ball_threshold)
         
-        if ball_alert:
-            self.action = np.zeros((2,)) #stop moving
+        if ball_alert: #stop moving
+            self.action = np.zeros((2,)) 
         else:
             #Pillar avoidance
             self.action, object_detected = compute_pillar_avoidance(visual_features)
@@ -168,6 +169,7 @@ class Controller(BaseController):
             np.save(f'vision_{self.counter_vision_buffer}.npy', obs["vision"])
             if self.counter_vision_buffer == -1: # initialization
                 self.vision_buffer.append(obs["vision"]) ; self.vision_buffer.append(obs["vision"]) # append twice to fill the buffer
+                #ensure first prediction is zero
                 self.counter_vision_buffer = 0
 
             self.counter_vision_buffer += 1
@@ -217,7 +219,6 @@ class Controller(BaseController):
  
             # TEST ############################
             if not version_window:
-                # end_effectors = np.array([step['end_effectors'] for step in self.path_int_buffer])
                 contact_forces = np.array([step['contact_forces'] for step in self.path_int_buffer])
                 heading = np.array([step['heading'] for step in self.path_int_buffer])
                 heading = np.unwrap(heading, discont=np.pi)
@@ -227,28 +228,34 @@ class Controller(BaseController):
                 proprioceptive_heading_pred, proprioceptive_dist_pred = extract_proprioceptive_variables_from_stride(
                     stride_length, contact_forces, window_len=self.proprio_window_length
                 )
-                true_x = np.array([step['fly_x'] for step in self.test_path_int_buffer])
-                true_y = np.array([step['fly_y'] for step in self.test_path_int_buffer])
-                true_heading = np.array([step['heading'] for step in self.test_path_int_buffer])
-
+                
                 if generate_trajectories:
+                    true_x = np.array([step['fly_x'] for step in self.test_path_int_buffer])
+                    true_y = np.array([step['fly_y'] for step in self.test_path_int_buffer])
+                    true_heading = np.array([step['heading'] for step in self.test_path_int_buffer])
                     velocities = np.array([step['velocity'] for step in self.path_int_buffer])
                     save_trajectories_for_path_integration_model(x_true= true_x,y_true=true_y,heading_true=true_heading ,distance_pred = proprioceptive_dist_pred, heading_pred_optic = self.heading_preds_optic, heading_pred= proprioceptive_heading_pred, seed=self.seed_sim, fly_roll=self.fly_roll_hist, velocity = velocities)
-            
+                    print('true displacement', true_x[-1], true_y[-1], 'heading', true_heading[-1])
 
                 # Integrate displacement
                 displacement_diff_pred = self.prop_disp_model(proprioceptive_dist_pred)
-                heading_diff_pred = self.prop_heading_model(proprioceptive_heading_pred)
-                heading_pred = np.cumsum(heading_diff_pred / self.proprio_window_length)
+                heading_optic_pred = self.optic_heading_model.predict(np.array(self.heading_preds_optic).reshape(-1, 1)) #self.prop_heading_model(proprioceptive_heading_pred)
+                # heading_pred = np.cumsum(heading_diff_pred / self.proprio_window_length)
 
-                # heading = heading[:displacement_diff_pred.shape[0]]
-                displacement_diff_x_pred = displacement_diff_pred * np.cos(heading_pred)
-                displacement_diff_y_pred = displacement_diff_pred * np.sin(heading_pred)
+                # TODO improve this simplification - going in a straight line
+                n_chunks = int(np.ceil(len(displacement_diff_pred) / 100))
+                displacement_diff_pred_subsampled = np.cumsum(np.array([ displacement_diff_pred[i*100 : (i+1)*100].sum() for i in range(n_chunks) ]))
+                # DANS LA SERIE
+                # flow_pred_heading_interp = np.interp(displacement_diff_tim, flow_heading_time, flow_pred_heading)
+
+
+                displacement_diff_x_pred = displacement_diff_pred_subsampled * np.cos(heading_optic_pred)
+                displacement_diff_y_pred = displacement_diff_pred_subsampled * np.sin(heading_optic_pred)
 
                 self.displacement_x = displacement_diff_x_pred
                 self.displacement_y = displacement_diff_y_pred
-                print('predicted displacement', self.displacement_x, self.displacement_y, 'heading',  self.heading_preds_optic[-1])
-                print('true displacement', true_x[-1], true_y[-1], 'heading', true_heading[-1])
+                print('predicted displacement', self.displacement_x[-1], self.displacement_y[-1], 'heading',  self.heading_preds_optic[-1])
+                
 
             pos_x_pred = np.cumsum(self.displacement_x / self.proprio_window_length)
             pos_y_pred = np.cumsum(self.displacement_y / self.proprio_window_length)
@@ -256,9 +263,6 @@ class Controller(BaseController):
             pos_pred = np.concatenate([np.full((self.proprio_window_length, 2), np.nan), pos_pred], axis=0) # pad with nan before the first window
 
             
-            # test_proprio(100, None, None, pos_pred[:,0],  pos_pred[:, 1]) # to save the variables to memory
-
-
 
             self.quit = True
         
