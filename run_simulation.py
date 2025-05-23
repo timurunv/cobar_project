@@ -57,7 +57,7 @@ def run_simulation(
         camera_name="camera_top_zoomout",
         targeted_fly_names=[fly.name],
         camera_parameters=cam_params,
-        play_speed=1.0,
+        play_speed=0.25,
     )
 
     sim = SingleFlySimulation(
@@ -83,7 +83,7 @@ def run_simulation(
         obs, reward, terminated, truncated, info = sim.step(controller.get_actions(obs))
         rendered_img = sim.render()[0]
         RENDER_TYPE = "RAW_VISION"
-        if False: # rendered_img is not None:
+        if rendered_img is not None: #False
             if RENDER_TYPE == "RAW_VISION":
                 rendered_img = render_image_with_vision(
                     rendered_img, get_fly_vision(fly), obs["odor_intensity"],
@@ -110,8 +110,8 @@ def run_simulation(
         if obs.get("reached_odour", False):
             counter += 1
         
-        if counter == 500:
-            controller.quit =  True
+        # if counter == 500:
+        #     controller.quit =  True
 
         if hasattr(controller, "quit") and controller.quit:
             print("Simulation terminated by user.")
@@ -119,7 +119,7 @@ def run_simulation(
         if hasattr(level_arena, "quit") and level_arena.quit:
             print("Target reached. Simulation terminated.")
             break
-        if i > 2000: 
+        if i > 22000: 
             obs['reached_odour'] = True
         
         

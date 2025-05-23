@@ -11,6 +11,7 @@ import math
 #python run_simulation.py --level 0 --max-steps 2000
 #python3 run_simulation.py --level 0 --max-steps 2000
 #python3 run_simulation.py --level 4 --max-steps 30000 --saveplot --savevid --seed 19
+#use numba for the next time
 
 class Controller(BaseController):
     def __init__(
@@ -47,6 +48,7 @@ class Controller(BaseController):
         self.remaining_rotation = 0
         self.alpha_heading = 0
         self.distance_to_cover = 0
+        self.alpha = 0
 
     def _process_visual_observation(self, raw_obs):
         features = np.zeros((2, 3))
@@ -105,46 +107,33 @@ class Controller(BaseController):
                         self.action = np.array([-1.0, -1.0])
             
         else:
-            print("reached odor, going back to la casa")
             if(self.init_rotation_angle): 
-                print("tqt je prédis ta mère")
-                
-                x_pred = 234
+                x_pred = -234
                 y_pred = 554
                 self.distance_to_cover = np.sqrt(x_pred**2 + y_pred**2)
-                alpha = np.arctan(y_pred/x_pred)
-                self.alpha_heading = obs["heading"]
-                
-                print(self.alpha_heading, "alpha heading")
-                print(alpha, "alpha")
-                self.remaining_rotation = math.radians(180) - self.alpha_heading + alpha
+                self.alpha = np.arctan2(-y_pred, -x_pred)
                 self.init_rotation_angle = False
                 
-            else :  
-                print("je print ta mere en scred boucle")
-                angle_change_per_iter = obs["heading"]-self.alpha_heading
-                self.remaining_rotation -= angle_change_per_iter
-                self.alpha_heading = obs["heading"]
-                print(self.remaining_rotation, "remaining rotation")
-                print(self.alpha_heading, "alpha heading")
-                print(angle_change_per_iter, "change per iter")
-                #reached odour and have to come back home 
-                
-                if(self.remaining_rotation < 0.01): 
-                    print("ta mere elle a fini de tourner")
-                    dt_per_step = 1e-4
-                    instantaneous_speed = obs['velocity']
-                    dx_per_step = instantaneous_speed*dt_per_step
-                    self.distance_to_cover -= dx_per_step
-                    if(self.distance_to_cover < 0.001): 
-                        self.quit = True
-                    self.action = np.array([1.0, 1.0])
-                    #need to see how compute the distance
-                
-                else : 
-                    self.action = np.array([-1.0, 1.0]) * self.remaining_rotation / 180
-                    
-                    
+            error = self.alpha - obs["heading"]
+            if error > math.pi:
+                error -= 2 * math.pi
+            elif error < -math.pi:
+                error += 2 * math.pi
+
+            Kp = 3.0 #proportional gain
+            self.action = np.array([-1.0, 1.0]) * Kp * error 
+            self.action[0] = np.clip(self.action[0], -1.0, 1.0)
+            self.action[1] = np.clip(self.action[1], -1.0, 1.0)
+            
+            if(abs(error) < 0.1): 
+                dt_per_step = 1e-4
+                instantaneous_speed = np.linalg.norm(obs['velocity']) * 13
+                dx_per_step = instantaneous_speed*dt_per_step
+                self.distance_to_cover -= dx_per_step
+                print("distance to cover", self.distance_to_cover)
+                if(self.distance_to_cover < 0.001): 
+                    self.quit = True
+                self.action = np.array([1.0, 1.0])
         
         joint_angles, adhesion = step_cpg(
             cpg_network=self.cpg_network,
