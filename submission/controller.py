@@ -190,6 +190,7 @@ class Controller(BaseController):
             if not self.computed_proprioceptive: 
                 self.computed_proprioceptive = True
                 contact_forces = np.array([step['contact_forces'] for step in self.path_int_buffer])
+                velocities = np.array([step['velocity'] for step in self.path_int_buffer])
 
                 proprioceptive_heading_pred, proprioceptive_dist_pred = extract_proprioceptive_variables_from_stride(
                     np.array(self.stride_lengths), contact_forces, window_len=self.proprio_window_length
@@ -199,7 +200,6 @@ class Controller(BaseController):
                     true_x = np.array([step['fly_x'] for step in self.test_path_int_buffer])
                     true_y = np.array([step['fly_y'] for step in self.test_path_int_buffer])
                     true_heading = np.array([step['heading'] for step in self.test_path_int_buffer])
-                    velocities = np.array([step['velocity'] for step in self.path_int_buffer])
                     drives = np.array([step['drive'] for step in self.path_int_buffer])
                     save_trajectories_for_path_integration_model(x_true= true_x,y_true=true_y,heading_true=true_heading ,
                                                                 distance_pred = proprioceptive_dist_pred, heading_pred_optic = self.heading_preds_optic, 
@@ -208,11 +208,7 @@ class Controller(BaseController):
                     print('true displacement', true_x[-1], true_y[-1], 'heading', true_heading[-1])
 
                 heading_final = self.create_heading_final(proprioceptive_heading_pred, self.heading_preds_optic)
-                
-                velocity_x = None
-                if velocity_x is None:
-                    heading_final = heading_final[self.proprio_window_length:] # remove first proprioceptive window since velocity not accurate in the displacement prediction
-                disp_final = self.create_displacement_final(proprioceptive_dist_pred, velocities=velocity_x)
+                disp_final = self.create_displacement_final(proprioceptive_dist_pred, velocities=velocities)
 
                 displacement_diff_x_pred = disp_final.flatten() * np.cos(heading_final).flatten()
                 displacement_diff_y_pred = disp_final.flatten() * np.sin(heading_final).flatten()
