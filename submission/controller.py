@@ -74,7 +74,7 @@ class Controller(BaseController):
         self.counter_vision_buffer = -1 # initialized to -1 to fill the buffer
         self.last_end_effector_pos = None # to compute stride length
         self.stride_lengths = [] # store stride lengths for proprioception
-        self.prop_heading_model, self.prop_disp_model, self.optic_heading_model, self.velocity_model = load_proprioceptive_models()
+        self.prop_heading_model, self.prop_disp_model, self.ols_model_disp, self.optic_heading_model, self.velocity_model = load_proprioceptive_models()
 
         self.pos_x = None # the result of the proprioceptive models on x 
         self.pos_y = None  # the result of the proprioceptive models on y
@@ -191,6 +191,8 @@ class Controller(BaseController):
                 self.computed_proprioceptive = True
                 contact_forces = np.array([step['contact_forces'] for step in self.path_int_buffer])
                 velocities = np.array([step['velocity'] for step in self.path_int_buffer])
+                drives = np.array([step['drive'] for step in self.path_int_buffer])
+                true_headings = np.array([step['heading'] for step in self.path_int_buffer])
 
                 proprioceptive_heading_pred, proprioceptive_dist_pred = extract_proprioceptive_variables_from_stride(
                     np.array(self.stride_lengths), contact_forces, window_len=self.proprio_window_length
@@ -200,16 +202,16 @@ class Controller(BaseController):
                     true_x = np.array([step['fly_x'] for step in self.test_path_int_buffer])
                     true_y = np.array([step['fly_y'] for step in self.test_path_int_buffer])
                     true_heading = np.array([step['heading'] for step in self.test_path_int_buffer])
-                    drives = np.array([step['drive'] for step in self.path_int_buffer])
+                    
                     save_trajectories_for_path_integration_model(x_true= true_x,y_true=true_y,heading_true=true_heading ,
                                                                 distance_pred = proprioceptive_dist_pred, heading_pred_optic = self.heading_preds_optic, 
                                                                 heading_pred= proprioceptive_heading_pred, seed=self.seed_sim, fly_roll=self.fly_roll_hist, 
                                                                  velocity = velocities, drives = drives)
                     print('true displacement', true_x[-1], true_y[-1], 'heading', true_heading[-1])
 
-                heading_final = self.create_heading_final(proprioceptive_heading_pred, self.heading_preds_optic)
-                disp_final = self.create_displacement_final(proprioceptive_dist_pred, velocities=velocities)
-
+                heading_final = self.create_heading_final(proprioceptive_heading_pred, self.heading_preds_optic, true_headings, optic_flow= False)
+                disp_final = self.create_displacement_final(proprioceptive_dist_pred, drives=drives, velocities=velocities, ols = True)
+                # create_displacement_final(self, proprioceptive_dist_pred, drives, velocities, ols = False):
                 displacement_diff_x_pred = disp_final.flatten() * np.cos(heading_final).flatten()
                 displacement_diff_y_pred = disp_final.flatten() * np.sin(heading_final).flatten()
 
@@ -219,8 +221,6 @@ class Controller(BaseController):
                 self.pos_x = pos_x_pred[-1]
                 self.pos_y = pos_y_pred[-1]
                 tqdm.write(f"pos_x_pred: {pos_x_pred[-1]}, pos_y_pred: {pos_y_pred[-1]}, pred heading: {heading_final[-1]}")
-
-
 
             if(self.init_rotation_angle): 
                 self.distance_to_cover = np.sqrt(self.pos_x**2 + self.pos_y**2)
@@ -270,7 +270,7 @@ class Controller(BaseController):
 
 
 
-    def create_heading_final(self, proprioceptive_heading_pred, optic_heading_pred, optic_window = 100):
+    def create_heading_final(self, proprioceptive_heading_pred, optic_heading_pred, obs_heading, optic_window = 100, optic_flow = False):
         """
         This function creates the final heading signal by combining the proprioceptive and optic flow signals.
         It uses the proprioceptive heading signal to fill in the gaps between optic flow updates.
@@ -293,18 +293,26 @@ class Controller(BaseController):
         # fill with zeros the first proprioceptive window so that later the delta is correct
         proprio_heading = np.concatenate([np.full((self.proprio_window_length), 0), proprio_heading], axis=0)/ self.proprio_window_length
 
-        optic_headings_corrected = self.optic_heading_model.predict(np.array(optic_heading_pred).reshape(-1, 1)).flatten()
+        if optic_flow:
+            periodic_headings = self.optic_heading_model.predict(np.array(optic_heading_pred).reshape(-1, 1)).flatten()
+        else:
+            periodic_headings = obs_heading[::optic_window]
         
-        for i, idx in enumerate(optic_indices): # every optic window set value to optic heading
-            heading_final[idx] = optic_headings_corrected[i]
+        for i, idx in enumerate(optic_indices): # every periodic window set value to optic heading or obs_heading
+            heading_final[idx] = periodic_headings[i]
 
-        # Fill in the initial proprioceptive window using optic flow only 
-        for i in range(0, self.proprio_window_length - optic_window, optic_window):
-            # carry forward last optic value (step-wise fill)
-            for j in range(i + 1, i + optic_window):
-                heading_final[j] = heading_final[j - 1]
+        if optic_flow:
+            # Fill in the initial proprioceptive window using optic flow only 
+            for i in range(0, self.proprio_window_length - optic_window, optic_window):
+                # carry forward last optic value (step-wise fill)
+                for j in range(i + 1, i + optic_window):
+                    heading_final[j] = heading_final[j - 1]
+        else:
+            # Use the first 1200 obs_heading values
+            heading_final[:self.proprio_window_length] = obs_heading[:self.proprio_window_length]
 
-        # Between optic updates use the proprioceptive heading
+
+        # Between optic/obs updates use the proprioceptive heading
         for i in range(len(optic_indices) - 1):
             for j in range(optic_indices[i] + 1, optic_indices[i + 1]):
                 heading_final[j] = heading_final[j - 1] + proprio_heading[j]
@@ -315,7 +323,7 @@ class Controller(BaseController):
             
         return heading_final
 
-    def create_displacement_final(self, proprioceptive_dist_pred, velocities):
+    def create_displacement_final(self, proprioceptive_dist_pred,drives, velocities, ols = False):
         """
         This function creates the final displacement signal by combining the proprioceptive and velocity signals.
         It uses the velocity signal to fill the first proprioceptive window.
@@ -335,8 +343,31 @@ class Controller(BaseController):
         disp_pred_velocity = self.velocity_model.predict(disp_velocity).flatten()
         disp_final[:self.proprio_window_length] = disp_pred_velocity[:self.proprio_window_length]
 
-        proprio_disp_pred = self.prop_disp_model(proprioceptive_dist_pred)
-        disp_final[self.proprio_window_length:] = proprio_disp_pred
+        if ols:
+            drives_l  = np.array([drive[0] for drive in drives])
+            drives_l =  drives_l[self.proprio_window_length:]
+            drives_r = np.array([drive[1] for drive in drives])
+            drives_r =  drives_r[self.proprio_window_length:]
+            velocities_x = np.array([velocity[0] for velocity in velocities])
+            velocities_x = velocities_x[self.proprio_window_length:]
+            velocities_y = np.array([velocity[1] for velocity in velocities])
+            velocities_y = velocities_y[self.proprio_window_length:]
+            # print ('drives', drives_l.shape, drives_r.shape, velocities_x.shape, velocities_y.shape,proprioceptive_dist_pred.shape)
+            data  = {
+                'propr': proprioceptive_dist_pred.flatten(),
+                'd_l': drives_l.flatten(),
+                'd_r': drives_r.flatten(),
+                'vx': np.array(velocities_x).flatten(),
+                'vy': np.array(velocities_y).flatten(),
+                }
+            
+            import pandas as pd
+            df = pd.DataFrame(data)
+            disp_pred = self.ols_model_disp.predict(df)
+
+        else:
+            disp_pred = self.prop_disp_model(proprioceptive_dist_pred)
+        disp_final[self.proprio_window_length:] = disp_pred
 
         return disp_final
     

@@ -4,6 +4,7 @@ import json
 import numpy as np
 from sklearn.linear_model import LinearRegression
 import os
+import pickle
 
 # various functions adapted from the exercise session to compute proprioceptive variables 
 
@@ -56,7 +57,7 @@ def extract_proprioceptive_variables_from_stride(stride_length: np.array, contac
     # Extract the stride length for each side along the x axis
     stride_left = stride_length[:, :3 , 0] # first 3 legs
     stride_right = stride_length[:, 3:, 0] # last 3 legs
-    
+
     # take force only on z axis
     contact_mask = contact_force[:,:,-1] > contact_force_thr  # (window_len, 6) 
 
@@ -79,6 +80,14 @@ def extract_proprioceptive_variables_from_stride(stride_length: np.array, contac
 
 
 def load_proprioceptive_models():
+    try:
+        import statsmodels
+    except ImportError:
+        import sys
+        import subprocess
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "statsmodels"])
+        import statsmodels  
+    
     path_proprio = os.path.join(os.getcwd(), 'submission', 'proprioceptive_models.json')
     with open(path_proprio, 'r') as f:
         models_data = json.load(f)
@@ -97,12 +106,6 @@ def load_proprioceptive_models():
     heading_flow_model_univariate.intercept_ = np.array([heading_models_data['heading_flow_model']['intercept']])
     heading_flow_model_univariate._residues = None;   heading_flow_model_univariate.n_features_in_ = 1
 
-    # Multivariate model
-    # heading_flow_model.coef_ = np.array([[heading_models_data['heading_flow_model']['slopes']]])
-    # heading_flow_model.intercept_ = np.array([heading_models_data['heading_flow_model']['intercept']])
-    # heading_flow_model._residues = None  # Legacy, not needed usually
-    # heading_flow_model_multivar.n_features_in_ = 2
-
 
     # velocity model
     path_velocity = os.path.join(os.getcwd(), 'submission', 'velocity_model.json')
@@ -113,7 +116,16 @@ def load_proprioceptive_models():
     velocity_model.intercept_ = np.array([velocity_models_data['intercept']])
     velocity_model._residues = None;   velocity_model.n_features_in_ = 1
 
-    return prop_heading_model, prop_disp_model, heading_flow_model_univariate, velocity_model
+    path_ols_disp = os.path.join(os.getcwd(), 'submission', 'ols_displacement_model.pkl')
+    with open(path_ols_disp, 'rb') as f:
+        ols_model_disp = pickle.load(f)
+    
+    # path_ols_heading = os.path.join(os.getcwd(), 'submission', 'ols_heading_model.pkl')
+    # with open(path_ols_heading, 'rb') as f:
+    #     ols_model_heading = pickle.load(f)
+
+    return prop_heading_model,prop_disp_model, ols_model_disp, heading_flow_model_univariate, velocity_model
+
 
 
 def absolute_to_relative_pos( # NOT USED

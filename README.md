@@ -17,13 +17,17 @@ python explore_levels.py --level <level> --seed <seed>
 ```
 Replace `<level>` with the desired level number (0 to 4 for the 5 levels, -1 for just a flat terrain) and `<seed>` with the random seed for reproducibility.
 
-The `run_simulation.py` script contains code that will be used to evaluate the controller.
+The `run_simulation.py` script contains code that will be used to evaluate the controller. 
+
+Attention: Our pipeline imports statsmodels which is not originally present in the flygym environment. It will be installed in case it is not already present.
 
 To run the simulation, use:
 ```bash
 conda activate flygym
 python run_simulation.py <submission_folder> --level <level> --seed <seed> --progress --max-steps 10000
 ```
+
+To generate trajectories to build the models, please apppend ``` --gen_trajectories``` to the above mentioned bash command. 
 
 Replace `<submission_folder>` with the path to your submission folder. An example submission folder is provided in the `submission` directory. It contains a controller that walks forward regardless of the observations it receives. You may use that as a starting point for your own controller.
 
