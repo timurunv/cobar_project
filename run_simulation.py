@@ -214,7 +214,7 @@ if __name__ == "__main__":
         import numpy as np
         TRAJECTORY_PATH = Path('outputs/trajectories')
         TRAJECTORY_PATH.mkdir(parents=True, exist_ok=True)
-        n_seeds = 8
+        n_seeds = 10
         for seed in np.random.choice(100, size=n_seeds, replace=False):
             print('\n\n Seed : ', seed)
             run_simulation(
