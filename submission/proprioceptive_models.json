@@ -1,0 +1,10 @@
+{
+    "prop_heading_model": {
+        "slope": 0.21965777143554438,
+        "intercept": 0.004979321029618168
+    },
+    "prop_disp_model": {
+        "slope": -0.8476710680960852,
+        "intercept": 2.1825755964394107
+    }
+}

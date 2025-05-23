@@ -18,7 +18,6 @@ from submission.utils import plot_trajectory
 from matplotlib import pyplot as plt
 import cv2
 
-
 def run_simulation(
     submission_dir,
     level,
@@ -29,10 +28,11 @@ def run_simulation(
     progress=True,
     save_video=True,
     save_plot=False,
+    generate_trajectories=False,
 ):
     sys.path.append(str(submission_dir.parent))
     module = importlib.import_module(submission_dir.name)
-    controller = module.controller.Controller()
+    controller = module.controller.Controller(seed_sim=seed)
     timestep = 1e-4
 
     fly = CobarFly(
@@ -80,7 +80,7 @@ def run_simulation(
     counter = 0
     for i in step_range:
         # Get observations
-        obs, reward, terminated, truncated, info = sim.step(controller.get_actions(obs))
+        obs, reward, terminated, truncated, info = sim.step(controller.get_actions(obs, generate_trajectories=generate_trajectories))
         rendered_img = sim.render()[0]
         RENDER_TYPE = "RAW_VISION"
         if rendered_img is not None: #False
@@ -95,23 +95,25 @@ def run_simulation(
             rendered_img = cv2.cvtColor(rendered_img, cv2.COLOR_BGR2RGB)
             cv2.imshow("Simulation", rendered_img)
             cv2.waitKey(1)
+
         if controller.done_level(obs):
             # finish the path integration level
             break
 
+        # Reduce strain on memory
         obs_ = obs.copy()
-        if not obs_["vision_updated"]: # to save memory
+        if not obs_["vision_updated"]:
             if "vision" in obs_:
                 del obs_["vision"]
         if "raw_vision" in obs_:
             del obs_["raw_vision"]
-        obs_hist.append(obs_)
-        #info_hist.append(info)
-        if obs.get("reached_odour", False):
-            counter += 1
         
-        # if counter == 500:
-        #     controller.quit =  True
+        if "raw_vision" in info:
+            del info["raw_vision"]
+        
+        if save_plot:
+            obs_hist.append(obs_)
+            #info_hist.append(info)
 
         if hasattr(controller, "quit") and controller.quit:
             print("Simulation terminated by user.")
@@ -119,19 +121,17 @@ def run_simulation(
         if hasattr(level_arena, "quit") and level_arena.quit:
             print("Target reached. Simulation terminated.")
             break
-        if i > 22000: 
-            obs['reached_odour'] = True
         
-        
-
     if save_video: # Save video
         save_path = Path(output_dir) / f"level{level}_seed{seed}_iter{max_steps}.mp4"
         save_path.parent.mkdir(parents=True, exist_ok=True)
         cam.save_video(save_path, stabilization_time=0)
     if save_plot: # Save a plot of the trajectory
         save_path = Path(output_dir) / f"level{level}_seed{seed}_iter{max_steps}.png"
+        save_path.parent.mkdir(parents=True, exist_ok=True)
         plot_trajectory(save_path, obs_hist, level_arena.obstacle_positions, level_arena.odor_source, level_arena.obstacle_radius, level_arena.odor_dim)
 
+    
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the fly simulation.")
@@ -178,6 +178,12 @@ if __name__ == "__main__":
         default=True,
     )
     parser.add_argument(
+        "--gen_trajectories",
+        action="store_true",
+        help="Generate trajectories for path integration model.",
+        default=False,
+    )
+    parser.add_argument(
         "--savevid",
         action="store_true",
         help="Save the video at the end of the simulation.",
@@ -190,14 +196,36 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.saveplot:
         args.debug = True
-    run_simulation(
-        submission_dir=args.submission_dir,
-        level=args.level,
-        seed=args.seed,
-        debug=args.debug,
-        output_dir=args.output_dir,
-        max_steps=args.max_steps,
-        progress=args.progress,
-        save_video=args.savevid,
-        save_plot=args.saveplot,
-    )
+
+
+    if not args.gen_trajectories:
+        run_simulation(
+            submission_dir=args.submission_dir,
+            level=args.level,
+            seed=args.seed,
+            debug=args.debug,
+            output_dir=args.output_dir,
+            max_steps=args.max_steps,
+            progress=args.progress,
+            save_video=args.savevid,
+            save_plot=args.saveplot,
+        )
+    else: 
+        import numpy as np
+        TRAJECTORY_PATH = Path('outputs/trajectories')
+        TRAJECTORY_PATH.mkdir(parents=True, exist_ok=True)
+        n_seeds = 8
+        for seed in np.random.choice(100, size=n_seeds, replace=False):
+            print('\n\n Seed : ', seed)
+            run_simulation(
+                submission_dir=args.submission_dir,
+                level=args.level,
+                seed=seed,
+                debug=True,
+                output_dir=TRAJECTORY_PATH,
+                max_steps=args.max_steps,
+                progress=args.progress,
+                save_video=args.savevid,
+                save_plot=args.saveplot,
+                generate_trajectories=args.gen_trajectories,
+            )
