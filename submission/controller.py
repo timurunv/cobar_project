@@ -10,9 +10,8 @@ from .utils import get_cpg, step_cpg, compute_optic_flow, prepare_fly_vision
 from .olfaction import compute_olfaction_turn_bias, compute_stationary_olfaction_bias
 from .pillar_avoidance import compute_pillar_avoidance
 from .ball_avoidance import is_ball
-from .proprioception import predict_roll_change, get_stride_length, extract_proprioceptive_variables_from_stride
+from .proprioception import predict_roll_change, get_stride_length, extract_proprioceptive_variables_from_stride, load_proprioceptive_models
 from .tests import test_heading, test_proprio, save_trajectories_for_path_integration_model
-from .proprioception import get_stride_lengths, load_proprioceptive_models
 
 TEST_PATH = Path('outputs/test_heading')
 TEST_PATH.mkdir(parents=True, exist_ok=True)
@@ -57,25 +56,28 @@ class Controller(BaseController):
         self.velocities = []
 
         # Proprioception
+        self.computed_proprioceptive = True # in order to compute only once the current prediction
         self.heading_angle = 0 # initial heading angle in fly-centric
-        self.heading_preds_optic = [] 
-        self.path_int_buffer = [] 
+        self.heading_preds_optic = []  # current fly heading for all optic flow updates
+        self.path_int_buffer = [] # store variables necessary for proprioception
         self.position = np.array([0, 0]) # initial position in fly_centric space
-        self.estimated_orient_change = []
         self.vision_window_length = 1 # updating every vision update step
         self.proprio_window_length = 1200 # updating every stance cycle of the fly (0.12[s]/1e-4[s/step])
-        self.vision_buffer = []
-        self.counter_vision_buffer = -1
-        self.last_end_effector_pos = None
-        self.pos_x = None
-        self.pos_y = None
-        self.stride_lengths = []
+        self.vision_buffer = [] # last 2 vision updates
+        self.counter_vision_buffer = -1 # initialized to -1 to fill the buffer
+        self.last_end_effector_pos = None # to compute stride length
+        self.stride_lengths = [] # store stride lengths for proprioception
         self.prop_heading_model, self.prop_disp_model, self.optic_heading_model, self.velocity_model = load_proprioceptive_models()
 
+        self.pos_x = None # the result of the proprioceptive models on x 
+        self.pos_y = None  # the result of the proprioceptive models on y
+        
+        # variables for testing
         self.seed_sim = seed_sim
         self.tests_counter = 0
         self.fly_roll_hist = [] 
         self.test_path_int_buffer = []
+        # self.estimated_orient_change = [] 
 
     def _process_visual_observation(self, raw_obs):
         features = np.zeros((2, 3))
@@ -99,8 +101,9 @@ class Controller(BaseController):
         del self.vision_buffer[0] # remove first entry
         self.vision_buffer.append(obs["vision"]) # update with latest vision
         delta_roll_pred = predict_roll_change(self.vision_buffer, n_top_pixels=8) # 8 is the best empirically found value
-        self.estimated_orient_change.append(delta_roll_pred) # append to memory
-        # cumulate the heading to keep track internally
+        # self.estimated_orient_change.append(delta_roll_pred) 
+        
+        # cumulate the heading to keep tracking of it internally
         self.heading_angle += delta_roll_pred
         self.heading_preds_optic.append(self.heading_angle)
 
@@ -184,12 +187,11 @@ class Controller(BaseController):
         
         if generate_trajectories:
             self.test_path_int_buffer.append({'heading' : obs["heading"], 'fly_x': obs["debug_fly"][0][0], 'fly_y' : obs["debug_fly"][0][1]})
-    
-        if obs.get('reached_odour', False): # finished level -> return home
-            # under TESTING ############################
+
+        # if finished level -> compute current proprioceptive location
+        if obs.get('reached_odour', False) and not self.computed_proprioceptive: 
+            self.computed_proprioceptive = True
             contact_forces = np.array([step['contact_forces'] for step in self.path_int_buffer])
-            heading = np.array([step['heading'] for step in self.path_int_buffer])
-            heading = np.unwrap(heading, discont=np.pi)
 
             proprioceptive_heading_pred, proprioceptive_dist_pred = extract_proprioceptive_variables_from_stride(
                 np.array(self.stride_lengths), contact_forces, window_len=self.proprio_window_length
@@ -224,8 +226,7 @@ class Controller(BaseController):
             self.pos_x = pos_x_pred[-1]
             self.pos_y = pos_y_pred[-1]
             print('pos_x_pred', pos_x_pred[-1], 'pos_y_pred', pos_y_pred[-1])
-        
-            self.quit = True
+
         
         
         joint_angles, adhesion = step_cpg(
