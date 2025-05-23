@@ -4,6 +4,7 @@ import math
 from pathlib import Path
 from scipy.ndimage import gaussian_filter1d
 from flygym.vision.retina import Retina
+from tqdm import tqdm
 
 from cobar_miniproject.base_controller import Action, BaseController, Observation
 
@@ -221,12 +222,11 @@ class Controller(BaseController):
                 
                 self.pos_x = pos_x_pred[-1]
                 self.pos_y = pos_y_pred[-1]
-                print('pos_x_pred', pos_x_pred[-1], 'pos_y_pred', pos_y_pred[-1], 'pred heading', heading_final[-1])
+                tqdm.write(f"pos_x_pred: {pos_x_pred[-1]}, pos_y_pred: {pos_y_pred[-1]}, pred heading: {heading_final[-1]}")
+
 
 
             if(self.init_rotation_angle): 
-                # self.pos_x = 32
-                # self.pos_y = -8
                 self.distance_to_cover = np.sqrt(self.pos_x**2 + self.pos_y**2)
                 self.alpha = np.arctan2(-self.pos_y, -self.pos_x)
                 self.init_rotation_angle = False
@@ -237,7 +237,7 @@ class Controller(BaseController):
                 error -= 2 * math.pi
             elif error < -math.pi:
                 error += 2 * math.pi
-            # print('alpha',self.alpha, 'error', error, 'true heading')
+            
             Kp = 3.0 #proportional gain
             self.action = np.array([-1.0, 1.0]) * Kp * error 
             self.action[0] = np.clip(self.action[0], -1.0, 1.0)
@@ -246,10 +246,8 @@ class Controller(BaseController):
             if(abs(error) < 0.1): 
                 dt_per_step = 1e-4
                 instantaneous_speed = np.linalg.norm(obs['velocity'])
-                # print('instantaneous speed', instantaneous_speed)
                 dx_per_step = instantaneous_speed*dt_per_step
                 self.distance_to_cover -= dx_per_step
-                print("distance to cover", self.distance_to_cover)
                 if(self.distance_to_cover < 0.001): 
                     self.quit = True
                 self.action = np.array([1.0, 1.0])
@@ -332,26 +330,21 @@ class Controller(BaseController):
         velocities : np.array
             The velocity signal.
         """
-        if velocities is None: # do not use velocity
-            additonal = 0
-            N = len(proprioceptive_dist_pred)
-            disp_final = np.zeros(N)
-        else:
-            additonal= self.proprio_window_length
-            N = len(proprioceptive_dist_pred) + additonal
-            disp_final = np.zeros(N)
-            
+        N = len(proprioceptive_dist_pred) + self.proprio_window_length
+        disp_final = np.zeros(N)
 
-            # Velocity for the first proprioceptive window
-            smoothed_velocity = gaussian_filter1d(velocities, sigma=20)
-            disp_pred_velocity = self.velocity_model.predict(np.array(smoothed_velocity).reshape(-1, 1)).flatten()
-            disp_final[:self.proprio_window_length] = disp_pred_velocity[:self.proprio_window_length]
+        # Velocity for the first proprioceptive window
+        smoothed_velocity = gaussian_filter1d(velocities, sigma=100)
+        disp_velocity = np.array(smoothed_velocity).reshape(-1, 1) *1e-4
+        disp_pred_velocity = self.velocity_model.predict(disp_velocity).flatten()
+        disp_final[:self.proprio_window_length] = disp_pred_velocity[:self.proprio_window_length]
 
         proprio_disp_pred = self.prop_disp_model(proprioceptive_dist_pred)
-        disp_final[additonal:] = proprio_disp_pred
+        disp_final[self.proprio_window_length:] = proprio_disp_pred
 
         return disp_final
     
+
     def should_go_backwards(self , obs):    
         if self.counter_backwards % 5  == 0:
             self.velocities.append(obs['velocity'])

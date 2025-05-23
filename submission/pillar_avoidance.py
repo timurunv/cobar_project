@@ -5,7 +5,7 @@ def calc_ipsilateral_speed(deviation, is_found):
     if not is_found:
         return 1.0
     else:
-        return np.clip(deviation * 2 - 1, 0.2, 1.2) #TODO can tune and maybe baisser a 5
+        return np.clip(deviation * 2 - 1, 0.2, 1.2)
     
 def calc_ipsilateral_speed_vision(proportion, is_found):
     return np.clip(proportion * 0.7 / 0.01, 0.4, 0.7)

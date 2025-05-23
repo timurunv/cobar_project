@@ -56,7 +56,9 @@ def extract_proprioceptive_variables_from_stride(stride_length: np.array, contac
     # Extract the stride length for each side along the x axis
     stride_left = stride_length[:, :3 , 0] # first 3 legs
     stride_right = stride_length[:, 3:, 0] # last 3 legs
-    contact_mask = contact_force[:,:,-1] > contact_force_thr  # (window_len, 6) # take force only on z axis
+    
+    # take force only on z axis
+    contact_mask = contact_force[:,:,-1] > contact_force_thr  # (window_len, 6) 
 
     # Calculate the stride length for the stance period (touching the ground)
     stride_left = (stride_left * contact_mask[:, :3]).sum(axis=1)
