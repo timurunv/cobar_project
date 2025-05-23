@@ -62,7 +62,7 @@ class Controller(BaseController):
         self.velocities = []
 
         # Proprioception
-        self.computed_proprioceptive = True # in order to compute only once the current prediction
+        self.computed_proprioceptive = False # in order to compute only once the current prediction
         self.heading_angle = 0 # initial heading angle in fly-centric
         self.heading_preds_optic = []  # current fly heading for all optic flow updates
         self.path_int_buffer = [] # store variables necessary for proprioception
@@ -87,7 +87,7 @@ class Controller(BaseController):
 
     def _process_visual_observation(self, raw_obs):
         features = np.zeros((2, 3))
-        half_idx = np.unique(self.retina.ommatidia_id_map[250:], return_counts=False)
+        half_idx = np.unique(self.retina.ommatidia_id_map[220:], return_counts=False)
         raw_obs["vision"][:, half_idx[:-1], :] = True
         rgb_features = raw_obs["raw_vision"]
 
@@ -155,19 +155,7 @@ class Controller(BaseController):
                     self.action = np.ones((2,)) + compute_olfaction_turn_bias(obs)
                     
                 if self.counter_backwards > 2000 :
-                    if self.counter_backwards % 5  == 0:
-                        self.velocities.append(obs['velocity'])
-                        
-                    if self.counter_backwards % 1000 == 0 :
-                        velocities_array = np.array([np.array(v) for v in self.velocities])
-                        smoothed_velocity = gaussian_filter1d(velocities_array[:,0], sigma=15) #take forward velocity component
-                        avrg_velocity = np.mean(smoothed_velocity)
-                        if avrg_velocity < 5 and avrg_velocity > -5:
-                            self.going_backward = True
-                        else : 
-                            self.going_backward = False
-                            
-                        self.velocities = []
+                    self.going_backward = self.should_go_backwards(obs)
                     if self.going_backward : 
                         self.action = np.array([-1.0, -1.0])
             
@@ -212,11 +200,10 @@ class Controller(BaseController):
                     true_heading = np.array([step['heading'] for step in self.test_path_int_buffer])
                     velocities = np.array([step['velocity'] for step in self.path_int_buffer])
                     drives = np.array([step['drive'] for step in self.path_int_buffer])
-                    save_trajectories_for_path_integration_model(
-                        x_true= true_x,y_true=true_y,heading_true=true_heading ,
-                        distance_pred = proprioceptive_dist_pred, heading_pred_optic = self.heading_preds_optic, 
-                        heading_pred= proprioceptive_heading_pred, seed=self.seed_sim, fly_roll=self.fly_roll_hist, 
-                        velocity = velocities, drives = drives)
+                    save_trajectories_for_path_integration_model(x_true= true_x,y_true=true_y,heading_true=true_heading ,
+                                                                distance_pred = proprioceptive_dist_pred, heading_pred_optic = self.heading_preds_optic, 
+                                                                heading_pred= proprioceptive_heading_pred, seed=self.seed_sim, fly_roll=self.fly_roll_hist, 
+                                                                 velocity = velocities, drives = drives)
                     print('true displacement', true_x[-1], true_y[-1], 'heading', true_heading[-1])
 
                 heading_final = self.create_heading_final(proprioceptive_heading_pred, self.heading_preds_optic)
@@ -234,20 +221,23 @@ class Controller(BaseController):
                 
                 self.pos_x = pos_x_pred[-1]
                 self.pos_y = pos_y_pred[-1]
-                print('pos_x_pred', pos_x_pred[-1], 'pos_y_pred', pos_y_pred[-1])
+                print('pos_x_pred', pos_x_pred[-1], 'pos_y_pred', pos_y_pred[-1], 'pred heading', heading_final[-1])
 
 
             if(self.init_rotation_angle): 
+                # self.pos_x = 32
+                # self.pos_y = -8
                 self.distance_to_cover = np.sqrt(self.pos_x**2 + self.pos_y**2)
                 self.alpha = np.arctan2(-self.pos_y, -self.pos_x)
                 self.init_rotation_angle = False
+                
                 
             error = self.alpha - obs["heading"]
             if error > math.pi:
                 error -= 2 * math.pi
             elif error < -math.pi:
                 error += 2 * math.pi
-
+            # print('alpha',self.alpha, 'error', error, 'true heading')
             Kp = 3.0 #proportional gain
             self.action = np.array([-1.0, 1.0]) * Kp * error 
             self.action[0] = np.clip(self.action[0], -1.0, 1.0)
@@ -255,7 +245,8 @@ class Controller(BaseController):
             
             if(abs(error) < 0.1): 
                 dt_per_step = 1e-4
-                instantaneous_speed = np.linalg.norm(obs['velocity']) * 13
+                instantaneous_speed = np.linalg.norm(obs['velocity'])
+                # print('instantaneous speed', instantaneous_speed)
                 dx_per_step = instantaneous_speed*dt_per_step
                 self.distance_to_cover -= dx_per_step
                 print("distance to cover", self.distance_to_cover)
@@ -360,3 +351,17 @@ class Controller(BaseController):
         disp_final[additonal:] = proprio_disp_pred
 
         return disp_final
+    
+    def should_go_backwards(self , obs):    
+        if self.counter_backwards % 5  == 0:
+            self.velocities.append(obs['velocity'])
+            
+        if self.counter_backwards % 1000 == 0 :
+            velocities_array = np.array([np.array(v) for v in self.velocities])
+            smoothed_velocity = gaussian_filter1d(velocities_array[:,0], sigma=15) #take forward velocity component
+            avrg_velocity = np.mean(smoothed_velocity)
+            self.velocities = []
+            if avrg_velocity < 5 and avrg_velocity > -5:
+                return True
+            else : 
+                return False 
